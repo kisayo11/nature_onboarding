@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네이처요양병원 신규 입사자 온보딩</title>
+    <!-- Pretendard Font (Modern, clean sans-serif) -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Modern Premium Aesthetics System */
+        :root {
+            /* Hospital Trust Colors - Deep Teal & Soft Mint */
+            --primary: #0F766E;
+            --primary-light: #14B8A6;
+            --primary-dark: #0F52BA; /* Added contrast for buttons */
+            
+            /* Backgrounds - Soft Gradients */
+            --bg-body: #F0FDF4; /* Very soft mint hint */
+            --bg-card: rgba(255, 255, 255, 0.85); /* Glass effect */
+            
+            /* Text */
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            
+            /* Layout & Effects */
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+            --border-glass: 1px solid rgba(255, 255, 255, 0.4);
+            --transition-bounce: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Pretendard', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #dcfce7 100%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding-bottom: 4rem;
+        }
+
+        /* --- Animations --- */
+        @keyframes fadeInSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes floatingBg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* --- Header (Hero Section) --- */
+        .header {
+            padding: 3rem 1.5rem 2rem;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+            animation: fadeInSlideUp 0.8s ease-out forwards;
+        }
+
+        .hospital-logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            transform: rotate(-5deg);
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* --- Timeline Container --- */
+        .timeline {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+            position: relative;
+        }
+
+        /* Connecting line for timeline */
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 2rem;
+            bottom: 2rem;
+            left: 2.5rem;
+            width: 3px;
+            background: linear-gradient(to bottom, var(--primary-light), transparent);
+            border-radius: 3px;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .timeline::before { display: none; } /* Hide line on mobile for clean look */
+        }
+
+        /* --- Step Cards (Glassmorphism) --- */
+        .step-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            margin-bottom: 2.5rem;
+            box-shadow: var(--shadow-glass);
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: var(--transition-bounce);
+        }
+
+        /* Add intersection observer animation class */
+        .step-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px) scale(1.01);
+            box-shadow: 0 15px 35px 0 rgba(31, 38, 135, 0.12);
+        }
+
+        /* Essential vs Optional styling */
+        .step-card.optional {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px dashed rgba(100, 116, 139, 0.3);
+        }
+
+        /* --- Steps Header --- */
+        .step-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-badge {
+            flex-shrink: 0;
+            width: 3rem;
+            height: 3rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 10px rgba(15, 118, 110, 0.3);
+        }
+
+        .optional .step-badge {
+            background: var(--text-muted);
+            box-shadow: none;
+        }
+
+        .step-title-wrapper {
+            flex-grow: 1;
+        }
+
+        .step-title-wrapper h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .step-desc {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* --- Lists & Elements --- */
+        .check-list {
+            list-style: none;
+            margin: 1.5rem 0;
+            background: rgba(255,255,255,0.5);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+
+        .check-list li {
+            position: relative;
+            padding-left: 2rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+
+        .check-list li:last-child { margin-bottom: 0; }
+
+        .check-list li i {
+            position: absolute;
+            left: 0;
+            top: 2px;
+            color: var(--primary-light);
+            font-size: 1.25rem;
+        }
+
+        /* Warning text inline */
+        .text-warning {
+            display: block;
+            margin-top: 0.4rem;
+            font-size: 0.85em;
+            color: #E11D48; /* Rose red */
+            background: #FFF1F2;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            border-left: 3px solid #E11D48;
+        }
+
+        /* --- Role Breakdown Box --- */
+        .role-breakdown {
+            margin: 1.5rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .role-group {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(15, 118, 110, 0.1);
+            border-left: 4px solid var(--primary-light);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .role-group.admin {
+            border-left-color: var(--text-muted);
+        }
+
+        .role-group h4 {
+            font-size: 1.05rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .role-group p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: var(--info-bg, #eff6ff);
+            color: var(--info-text, #1e40af);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-right: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* --- Buttons --- */
+        .action-group {
+            margin-top: 2rem;
+        }
+
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 1.2rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(15, 82, 186, 0.2);
+            border: none;
+            cursor: pointer;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Button Hover effect (sweep) */
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: all 0.5s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(15, 82, 186, 0.3);
+        }
+        
+        .btn-primary:hover::after {
+            left: 100%;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            box-shadow: none;
+        }
+        .btn-outline:hover {
+            background: rgba(15, 118, 110, 0.05);
+            box-shadow: none;
+        }
+
+        .url-hint {
+            display: block;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.75rem;
+            font-family: monospace;
+            opacity: 0.7;
+        }
+
+        /* --- Facilities Info Grid --- */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (min-width: 600px) {
+            .info-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .info-box {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .info-box.highlight {
+            background: #F0FDF4;
+            border-color: #BBF7D0;
+        }
+
+        .info-box i {
+            font-size: 1.8rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box h3 { font-size: 1.1rem; }
+        .info-box p { font-size: 0.9rem; color: var(--text-muted); }
+
+        /* --- Footer --- */
+        .footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding: 2rem 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .contact-pill-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .contact-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            box-shadow: var(--shadow-glass);
+            color: var(--primary-dark);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="header">
+        <div class="hospital-logo-wrap">
+            <i class="ph-fill ph-hospital"></i>
+        </div>
+        <h1>입사를 환영합니다! 🎉</h1>
+        <p>네이처요양병원 신규 가족을 위한 온보딩 허브입니다.<br>원활한 출근 준비를 위해 아래 필수 과정을 진행해 주세요.</p>
+    </header>
+
+    <main class="timeline">
+
+        <!-- Step 1: 인사기록 -->
+        <article class="step-card">
+            <div class="step-header">
+                <div class="step-badge">1</div>
+                <div class="step-title-wrapper">
+                    <h2>인사기록카드 폼 작성</h2>
+                    <p class="step-desc">급여 지급 및 4대 보험 신고를 위한 기초 정보</p>
+                </div>
+            </div>
+            <div class="step-body">
+                <ul class="check-list">
+                    <li><i class="ph-fill ph-clock"></i> <strong>소요 시간:</strong> 약 5~10분 내외</li>
+                    <li><i class="ph-fill ph-file-text"></i> 정확한 정보로 기입 후 마지막 페이지에서 '제출'을 꼭 눌러주세요.</li>
+                </ul>
+                <div class="action-group">
+                    <a href="https://docs.google.com/forms/d/1CQP7AZbP8TzB4kX02NGY3OPBalbGXKY-792qvoCoe7U/preview" target="_blank" class="btn-primary">
+                        <i class="ph-bold ph-pencil-simple"></i> 구글 인사기록 폼 열기
+                    </a>
+                    <span class="url-hint">https://docs.google.com/forms/d/...</span>
+                </div>
+            </div>
+        </article>
+
+        <!-- Step 2: 범죄경력조회 -->
+        <article class="step-card">
+            <div class="step-header">
+                <div class="step-badge">2</div>
+                <div class="step-title-wrapper">
+                    <h2>범죄경력조회 사전 동의</h2>
+                    <p class="step-desc">의료법 및 관련 복지법 기반 필수 전력 시스템 조회</p>
+                </div>
+            </div>
+            <div class="step-body">
+                <p style="font-size: 0.95rem; color: var(--text-main); margin-bottom: 1rem;">
+                    경찰청 범죄경력회보서 발급시스템에서 <strong>'취업예정자 발급동의'</strong>를 통해 진행합니다.<br>
+                    지원하시는 직종에 따라 <strong>조회해야 할 법령 항목이 다르니</strong> 아래 표를 확인해 주의해서 체크해 주세요.
+                </p>
+
+                <div class="role-breakdown">
+                    <div class="role-group">
+                        <h4><i class="ph-fill ph-stethoscope"></i> 진료부 / 간호부 / 의료기사 / 간호조무사</h4>
+                        <p style="margin-bottom: 0.5rem;"><strong>필수 체크 항목 (3가지)</strong></p>
+                        <div>
+                            <span class="tag">노인학대</span> <span class="tag">성범죄</span> <span class="tag">장애인학대</span>
+                        </div>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+                            (노인복지법 제39조의17, 아동청소년의 성보호에 관한 법률 제56조, 장애인복지법 제59조의3)
+                        </p>
+                    </div>
+
+                    <div class="role-group admin">
+                        <h4><i class="ph-fill ph-desktop"></i> 원무과(행정) / 시설미화 / 영양팀(조리사 등)</h4>
+                        <p style="margin-bottom: 0.5rem;"><strong>필수 체크 항목 (1가지)</strong></p>
+                        <div>
+                            <span class="tag" style="background: #FFF1F2; color: #E11D48;">노인학대</span>
+                        </div>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+                            (노인복지법 제39조의17) ※ 성범죄 및 장애인학대 조회 불필요
+                        </p>
+                    </div>
+                </div>
+
+                <ul class="check-list" style="margin-top: 0;">
+                    <li><i class="ph-bold ph-check-circle"></i> <strong>준비물:</strong> 공동/금융인증서 또는 간편인증(PASS, 카카오톡 등)</li>
+                </ul>
+                <div class="action-group">
+                    <a href="https://crims.police.go.kr/" target="_blank" class="btn-primary btn-outline">
+                        <i class="ph-bold ph-shield-check"></i> 경찰청 발급시스템 이동
+                    </a>
+                    <span class="url-hint">https://crims.police.go.kr/</span>
+                </div>
+            </div>
+        </article>
+
+        <!-- Step 3: 온라인 교육 & 비즈메카 -->
+        <article class="step-card">
+            <div class="step-header">
+                <div class="step-badge">3</div>
+                <div class="step-title-wrapper">
+                    <h2>필수 사이트 가입 및 교육 수강</h2>
+                    <p class="step-desc">사이버 연수원 및 그룹웨어(비즈메카) 등록</p>
+                </div>
+            </div>
+            <div class="step-body">
+                <ul class="check-list">
+                    <li>
+                        <i class="ph-bold ph-graduation-cap"></i> <strong>사이버 연수원:</strong> 법정 의무 및 신규 배치전 교육 수강
+                        <span class="text-warning">※ 연수원 최초 접속 시 개인별 회원가입(1회) 필수</span>
+                    </li>
+                    <li>
+                        <i class="ph-bold ph-briefcase"></i> <strong>비즈메카:</strong> 사내 전자결재 및 전사 공지사항 확인용 그룹웨어
+                    </li>
+                </ul>
+                
+                <div class="action-group" style="display:flex; flex-direction:column; gap:1rem;">
+                    <!-- 사이버연수원 묶음 -->
+                    <div style="background: rgba(255,255,255,0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
+                        <a href="https://8019101604.modulearning.kr/studyCenterV2/" target="_blank" class="btn-primary btn-outline" style="margin-bottom: 0.5rem;">
+                            <i class="ph-bold ph-video-camera"></i> 사이버연수원 (교육) 사이트 이동
+                        </a>
+                        <a href="https://drive.google.com/file/d/1nqZhUbuX1jxL_2-vqad6PfGD1zFrpM9-/view?usp=sharing" target="_blank" class="btn-primary" style="background: linear-gradient(135deg, #475569, #334155); margin-bottom: 0.5rem;">
+                            <i class="ph-bold ph-file-pdf"></i> 사이버연수원 가입 절차 설명서 보기
+                        </a>
+                        <span class="url-hint">https://8019101604.modulearning.kr</span>
+                    </div>
+
+                    <!-- 비즈메카 -->
+                    <div style="padding: 0 1rem;">
+                        <a href="https://ezsso.bizmeka.com/loginForm.do" target="_blank" class="btn-primary btn-outline">
+                            <i class="ph-bold ph-link"></i> 비즈메카 (사내망) 가입
+                        </a>
+                        <span class="url-hint">https://ezsso.bizmeka.com/</span>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Step 4: 입사 당일 준비 -->
+        <article class="step-card optional">
+            <div class="step-header">
+                <div class="step-badge">4</div>
+                <div class="step-title-wrapper">
+                    <h2>[출근 준비] 실물 서류 및 인프라</h2>
+                    <p class="step-desc">첫 출근 시 총무팀/원무과 제출 사항</p>
+                </div>
+            </div>
+            <div class="step-body">
+                <ul class="check-list">
+                    <li><i class="ph-bold ph-files"></i> <strong>필수 서류:</strong> 등본 1통, 통장 사본, 면허/자격증 사본</li>
+                    <li><i class="ph-bold ph-thermometer"></i> <strong>건강진단서:</strong> 채용신체검사서 (잠복결핵 및 B형간염 필수)
+                        <span class="text-warning">※ 잠복결핵 및 B형 간염 검사는 본원(네이처요양병원)에서 진행 가능</span>
+                    </li>
+                    <li><i class="ph-bold ph-car"></i> <strong>차량 등록:</strong> 출퇴근 차량 번호 원무과 등록
+                        <span class="text-warning">※ SUV 전 차종 및 대형 승용차량은 병원 주차타워 구조상 등록 불가</span>
+                    </li>
+                </ul>
+            </div>
+        </article>
+
+        <!-- Step 5: 시설 안내 -->
+        <article class="step-card optional">
+            <div class="step-header">
+                <div class="step-badge">5</div>
+                <div class="step-title-wrapper">
+                    <h2>병원 생활 가이드</h2>
+                    <p class="step-desc">원내 와이파이 및 층별 주요 시설 안내</p>
+                </div>
+            </div>
+            <div class="step-body">
+                <div class="info-grid">
+                    <div class="info-box highlight">
+                        <i class="ph-bold ph-wifi-high"></i>
+                        <h3>Open Wi-Fi 네트워크</h3>
+                        <p><strong>SSID:</strong> NatureHospital</p>
+                    </div>
+                    <div class="info-box">
+                        <i class="ph-bold ph-map-trifold"></i>
+                        <h3>층별 주요 시설</h3>
+                        <p>
+                            구내식당: <strong>지하 2층</strong><br>
+                            여자탈의실: <strong>지하 2층 안쪽</strong><br>
+                            남자탈의실: <strong>1.5층</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+    </main>
+
+    <footer class="footer">
+        <p>온보딩 준비 중 막히는 부분이 있으시다면 언제든 총무팀/원무과로 문의해 주세요.</p>
+        <div class="contact-pill-wrap">
+            <div class="contact-pill">
+                <i class="ph-fill ph-phone"></i> 내선 903
+            </div>
+            <div class="contact-pill">
+                <i class="ph-fill ph-envelope-simple"></i> naturehello3@gmail.com
+            </div>
+        </div>
+    </footer>
+
+    <!-- Intersection Observer Script for scroll animation -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach((entry, index) => {
+                    if (entry.isIntersecting) {
+                        // Add slight delay based on item index for staggered effect
+                        setTimeout(() => {
+                            entry.target.classList.add('visible');
+                        }, index * 100);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            const stepCards = document.querySelectorAll('.step-card');
+            stepCards.forEach(card => {
+                observer.observe(card);
+            });
+        });
+    </script>
+</body>
+</html>
