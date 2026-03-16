@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>네이처요양병원 신규 입사자 온보딩</title>
     <!-- Pretendard Font (Modern, clean sans-serif) -->
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -15,16 +16,19 @@
             /* Hospital Trust Colors - Deep Teal & Soft Mint */
             --primary: #0F766E;
             --primary-light: #14B8A6;
-            --primary-dark: #0F52BA; /* Added contrast for buttons */
-            
+            --primary-dark: #0F52BA;
+            /* Added contrast for buttons */
+
             /* Backgrounds - Soft Gradients */
-            --bg-body: #F0FDF4; /* Very soft mint hint */
-            --bg-card: rgba(255, 255, 255, 0.85); /* Glass effect */
-            
+            --bg-body: #F0FDF4;
+            /* Very soft mint hint */
+            --bg-card: rgba(255, 255, 255, 0.85);
+            /* Glass effect */
+
             /* Text */
             --text-main: #1E293B;
             --text-muted: #64748B;
-            
+
             /* Layout & Effects */
             --radius-lg: 20px;
             --radius-md: 12px;
@@ -52,14 +56,29 @@
 
         /* --- Animations --- */
         @keyframes fadeInSlideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes floatingBg {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         /* --- Header (Hero Section) --- */
@@ -124,7 +143,11 @@
         }
 
         @media (max-width: 768px) {
-            .timeline::before { display: none; } /* Hide line on mobile for clean look */
+            .timeline::before {
+                display: none;
+            }
+
+            /* Hide line on mobile for clean look */
         }
 
         /* --- Step Cards (Glassmorphism) --- */
@@ -209,10 +232,10 @@
         .check-list {
             list-style: none;
             margin: 1.5rem 0;
-            background: rgba(255,255,255,0.5);
+            background: rgba(255, 255, 255, 0.5);
             padding: 1.5rem;
             border-radius: var(--radius-md);
-            border: 1px solid rgba(0,0,0,0.03);
+            border: 1px solid rgba(0, 0, 0, 0.03);
         }
 
         .check-list li {
@@ -223,7 +246,9 @@
             font-size: 0.95rem;
         }
 
-        .check-list li:last-child { margin-bottom: 0; }
+        .check-list li:last-child {
+            margin-bottom: 0;
+        }
 
         .check-list li i {
             position: absolute;
@@ -238,7 +263,8 @@
             display: block;
             margin-top: 0.4rem;
             font-size: 0.85em;
-            color: #E11D48; /* Rose red */
+            color: #E11D48;
+            /* Rose red */
             background: #FFF1F2;
             padding: 0.4rem 0.8rem;
             border-radius: 6px;
@@ -252,7 +278,7 @@
             flex-direction: column;
             gap: 1rem;
         }
-        
+
         .role-group {
             background: rgba(255, 255, 255, 0.5);
             border: 1px solid rgba(15, 118, 110, 0.1);
@@ -273,13 +299,13 @@
             align-items: center;
             gap: 0.5rem;
         }
-        
+
         .role-group p {
             font-size: 0.9rem;
             color: var(--text-muted);
             line-height: 1.4;
         }
-        
+
         .tag {
             display: inline-block;
             background: var(--info-bg, #eff6ff);
@@ -322,9 +348,11 @@
         .btn-primary::after {
             content: '';
             position: absolute;
-            top: 0; left: -100%;
-            width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
             transition: all 0.5s ease;
         }
 
@@ -332,7 +360,7 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(15, 82, 186, 0.3);
         }
-        
+
         .btn-primary:hover::after {
             left: 100%;
         }
@@ -343,6 +371,7 @@
             color: var(--primary);
             box-shadow: none;
         }
+
         .btn-outline:hover {
             background: rgba(15, 118, 110, 0.05);
             box-shadow: none;
@@ -367,14 +396,16 @@
         }
 
         @media (min-width: 600px) {
-            .info-grid { grid-template-columns: 1fr 1fr; }
+            .info-grid {
+                grid-template-columns: 1fr 1fr;
+            }
         }
 
         .info-box {
             background: white;
             padding: 1.5rem;
             border-radius: var(--radius-md);
-            border: 1px solid rgba(0,0,0,0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
@@ -391,8 +422,14 @@
             margin-bottom: 0.5rem;
         }
 
-        .info-box h3 { font-size: 1.1rem; }
-        .info-box p { font-size: 0.9rem; color: var(--text-muted); }
+        .info-box h3 {
+            font-size: 1.1rem;
+        }
+
+        .info-box p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
 
         /* --- Footer --- */
         .footer {
@@ -452,7 +489,8 @@
                     <li><i class="ph-fill ph-file-text"></i> 정확한 정보로 기입 후 마지막 페이지에서 '제출'을 꼭 눌러주세요.</li>
                 </ul>
                 <div class="action-group">
-                    <a href="https://docs.google.com/forms/d/1CQP7AZbP8TzB4kX02NGY3OPBalbGXKY-792qvoCoe7U/preview" target="_blank" class="btn-primary">
+                    <a href="https://docs.google.com/forms/d/1CQP7AZbP8TzB4kX02NGY3OPBalbGXKY-792qvoCoe7U/preview"
+                        target="_blank" class="btn-primary">
                         <i class="ph-bold ph-pencil-simple"></i> 구글 인사기록 폼 열기
                     </a>
                     <span class="url-hint">https://docs.google.com/forms/d/...</span>
@@ -476,37 +514,58 @@
                 </p>
 
                 <div class="role-breakdown">
-                    <div class="role-group">
-                        <h4><i class="ph-fill ph-stethoscope"></i> 진료부 / 간호부 / 의료기사 / 간호조무사</h4>
-                        <p style="margin-bottom: 0.5rem;"><strong>필수 체크 항목 (3가지)</strong></p>
+                    <!-- 의사 / 간호사 -->
+                    <div class="role-group" style="border-left-color: #3B82F6;">
+                        <h4><i class="ph-fill ph-stethoscope"></i> 의사 / 간호사(RN)</h4>
+                        <p style="margin-bottom: 0.5rem; color: #E11D48;"><strong>총 3회 신청 (아래 3가지 항목 모두 발급)</strong></p>
                         <div>
-                            <span class="tag">노인학대</span> <span class="tag">성범죄</span> <span class="tag">장애인학대</span>
+                            <span class="tag">성범죄경력 및 아동학대</span>
+                            <span class="tag">노인학대</span>
+                            <span class="tag">장애인 학대</span>
                         </div>
-                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
-                            (노인복지법 제39조의17, 아동청소년의 성보호에 관한 법률 제56조, 장애인복지법 제59조의3)
-                        </p>
                     </div>
 
-                    <div class="role-group admin">
-                        <h4><i class="ph-fill ph-desktop"></i> 원무과(행정) / 시설미화 / 영양팀(조리사 등)</h4>
-                        <p style="margin-bottom: 0.5rem;"><strong>필수 체크 항목 (1가지)</strong></p>
+                    <!-- 물리/작업치료사, 간호조무사 -->
+                    <div class="role-group" style="border-left-color: #10B981;">
+                        <h4><i class="ph-fill ph-bandaids"></i> 물리/작업치료사, 간호조무사(AN)</h4>
+                        <p style="margin-bottom: 0.5rem; color: #E11D48;"><strong>총 3회 신청 (아래 3가지 항목 모두 발급)</strong></p>
                         <div>
-                            <span class="tag" style="background: #FFF1F2; color: #E11D48;">노인학대</span>
+                            <span class="tag">노인학대</span>
+                            <span class="tag">장애인 학대</span>
+                            <span class="tag">성범죄 경력</span>
                         </div>
-                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
-                            (노인복지법 제39조의17) ※ 성범죄 및 장애인학대 조회 불필요
-                        </p>
+                    </div>
+
+                    <!-- 기타 -->
+                    <div class="role-group admin" style="border-left-color: #64748B;">
+                        <h4><i class="ph-fill ph-desktop"></i> 기타 (원무/행정/시설/영양 등)</h4>
+                        <p style="margin-bottom: 0.5rem; color: #E11D48;"><strong>총 1회 신청</strong></p>
+                        <div>
+                            <span class="tag">노인학대</span>
+                        </div>
                     </div>
                 </div>
 
                 <ul class="check-list" style="margin-top: 0;">
-                    <li><i class="ph-bold ph-check-circle"></i> <strong>준비물:</strong> 공동/금융인증서 또는 간편인증(PASS, 카카오톡 등)</li>
+                    <li><i class="ph-bold ph-check-circle"></i> <strong>준비물:</strong> 공동/금융인증서 또는 간편인증(PASS, 카카오톡 등)
+                    </li>
                 </ul>
-                <div class="action-group">
-                    <a href="https://crims.police.go.kr/" target="_blank" class="btn-primary btn-outline">
-                        <i class="ph-bold ph-shield-check"></i> 경찰청 발급시스템 이동
-                    </a>
-                    <span class="url-hint">https://crims.police.go.kr/</span>
+
+                <div class="action-group" style="display:flex; flex-direction:column; gap:1rem;">
+                    <div
+                        style="background: rgba(255,255,255,0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
+                        <a href="https://crims.police.go.kr/" target="_blank" class="btn-primary btn-outline"
+                            style="margin-bottom: 0.5rem;">
+                            <i class="ph-bold ph-shield-check"></i> 경찰청 발급시스템 사이트 이동
+                        </a>
+                        <!-- 매뉴얼 버튼 (강조) -->
+                        <a href="https://drive.google.com/file/d/1iQe7nIehb5H2MHYGlAbEHXIhIJpV8N6d/view?usp=sharing"
+                            target="_blank" class="btn-primary"
+                            style="background: linear-gradient(135deg, #475569, #334155); margin-bottom: 0.5rem; box-shadow: 0 8px 25px rgba(71, 85, 105, 0.4);">
+                            <i class="ph-bold ph-file-pdf"></i> 안내 매뉴얼 열기 (필독)
+                        </a>
+                        <span class="url-hint">https://crims.police.go.kr/</span>
+                    </div>
                 </div>
             </div>
         </article>
@@ -530,14 +589,18 @@
                         <i class="ph-bold ph-briefcase"></i> <strong>비즈메카:</strong> 사내 전자결재 및 전사 공지사항 확인용 그룹웨어
                     </li>
                 </ul>
-                
+
                 <div class="action-group" style="display:flex; flex-direction:column; gap:1rem;">
                     <!-- 사이버연수원 묶음 -->
-                    <div style="background: rgba(255,255,255,0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
-                        <a href="https://8019101604.modulearning.kr/studyCenterV2/" target="_blank" class="btn-primary btn-outline" style="margin-bottom: 0.5rem;">
+                    <div
+                        style="background: rgba(255,255,255,0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
+                        <a href="https://8019101604.modulearning.kr/studyCenterV2/" target="_blank"
+                            class="btn-primary btn-outline" style="margin-bottom: 0.5rem;">
                             <i class="ph-bold ph-video-camera"></i> 사이버연수원 (교육) 사이트 이동
                         </a>
-                        <a href="https://drive.google.com/file/d/1nqZhUbuX1jxL_2-vqad6PfGD1zFrpM9-/view?usp=sharing" target="_blank" class="btn-primary" style="background: linear-gradient(135deg, #475569, #334155); margin-bottom: 0.5rem;">
+                        <a href="https://drive.google.com/file/d/1nqZhUbuX1jxL_2-vqad6PfGD1zFrpM9-/view?usp=sharing"
+                            target="_blank" class="btn-primary"
+                            style="background: linear-gradient(135deg, #475569, #334155); margin-bottom: 0.5rem;">
                             <i class="ph-bold ph-file-pdf"></i> 사이버연수원 가입 절차 설명서 보기
                         </a>
                         <span class="url-hint">https://8019101604.modulearning.kr</span>
@@ -545,7 +608,8 @@
 
                     <!-- 비즈메카 -->
                     <div style="padding: 0 1rem;">
-                        <a href="https://ezsso.bizmeka.com/loginForm.do" target="_blank" class="btn-primary btn-outline">
+                        <a href="https://ezsso.bizmeka.com/loginForm.do" target="_blank"
+                            class="btn-primary btn-outline">
                             <i class="ph-bold ph-link"></i> 비즈메카 (사내망) 가입
                         </a>
                         <span class="url-hint">https://ezsso.bizmeka.com/</span>
@@ -566,7 +630,7 @@
             <div class="step-body">
                 <ul class="check-list">
                     <li><i class="ph-bold ph-files"></i> <strong>필수 서류:</strong> 등본 1통, 통장 사본, 면허/자격증 사본</li>
-                    <li><i class="ph-bold ph-thermometer"></i> <strong>건강진단서:</strong> 채용신체검사서 (잠복결핵 및 B형간염 필수)
+                    <li><i class="ph-bold ph-thermometer"></i> <strong>건강진단서:</strong> 채용신체검사서
                         <span class="text-warning">※ 잠복결핵 및 B형 간염 검사는 본원(네이처요양병원)에서 진행 가능</span>
                     </li>
                     <li><i class="ph-bold ph-car"></i> <strong>차량 등록:</strong> 출퇴근 차량 번호 원무과 등록
@@ -611,7 +675,7 @@
         <p>온보딩 준비 중 막히는 부분이 있으시다면 언제든 총무팀/원무과로 문의해 주세요.</p>
         <div class="contact-pill-wrap">
             <div class="contact-pill">
-                <i class="ph-fill ph-phone"></i> 내선 903
+                <i class="ph-fill ph-phone"></i> 내선 905
             </div>
             <div class="contact-pill">
                 <i class="ph-fill ph-envelope-simple"></i> naturehello3@gmail.com
@@ -647,4 +711,5 @@
         });
     </script>
 </body>
+
 </html>
