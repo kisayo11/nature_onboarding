@@ -432,22 +432,34 @@
         }
 
         /* --- Inline Signature Form --- */
-        .form-group { margin-bottom: 1.25rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; color: var(--text-main); }
-        .form-group input { 
-            width: 100%; 
-            padding: 0.8rem; 
-            border: 1px solid rgba(0,0,0,0.1); 
-            border-radius: var(--radius-md); 
-            font-family: 'Pretendard', sans-serif; 
-            font-size: 1rem;
-            box-sizing: border-box; 
+        .form-group {
+            margin-bottom: 1.25rem;
         }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: var(--radius-md);
+            font-family: 'Pretendard', sans-serif;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
         .form-group input:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
         }
+
         .signature-pad {
             border: 2px dashed rgba(16, 185, 129, 0.4);
             border-radius: 12px;
@@ -457,8 +469,22 @@
             width: 100%;
             height: 200px;
         }
-        .btn-clear { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem; }
-        .btn-clear:hover { color: #E11D48; }
+
+        .btn-clear {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .btn-clear:hover {
+            color: #E11D48;
+        }
 
         /* --- Footer --- */
         .footer {
@@ -611,7 +637,8 @@
             <div class="step-body">
                 <ul class="check-list">
                     <li>
-                        <i class="ph-bold ph-chalkboard-teacher"></i> <strong>배치 전 교육:</strong> 원내 교육장 참석 후 스마트폰 출석 서명 제출 필수
+                        <i class="ph-bold ph-chalkboard-teacher"></i> <strong>배치 전 교육:</strong> 원내 교육장 참석 후 스마트폰 출석 서명
+                        제출 필수
                         <span class="text-warning">※ 미제출 시 교육 이수 처리 불가</span>
                     </li>
                     <li>
@@ -620,20 +647,27 @@
                 </ul>
 
                 <div class="action-group" style="display:flex; flex-direction:column; gap:1.2rem;">
-                    
+
                     <!-- 오프라인 자체 교육 (현장형 스마트 서명 토글) -->
-                    <div style="background: rgba(16, 185, 129, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.2); position: relative; overflow: hidden;">
-                        <span style="position:absolute; top:-1px; right:-1px; background:var(--primary-light); color:white; padding: 0.2rem 0.6rem; border-radius: 0 12px 0 8px; font-size:0.75rem; font-weight:bold;">스마트 출석</span>
-                        <h4 style="margin-bottom:0.75rem; color: #047857; font-size: 1.05rem;"><i class="ph-fill ph-chalkboard-teacher"></i> 오프라인 집합 교육</h4>
+                    <div
+                        style="background: rgba(16, 185, 129, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.2); position: relative; overflow: hidden;">
+                        <span
+                            style="position:absolute; top:-1px; right:-1px; background:var(--primary-light); color:white; padding: 0.2rem 0.6rem; border-radius: 0 12px 0 8px; font-size:0.75rem; font-weight:bold;">스마트
+                            출석</span>
+                        <h4 style="margin-bottom:0.75rem; color: #047857; font-size: 1.05rem;"><i
+                                class="ph-fill ph-chalkboard-teacher"></i> 오프라인 집합 교육</h4>
                         <p style="font-size: 0.85rem; color: #065F46; margin-bottom: 1rem;">
                             원내 교육장에서 오프라인 교육 수강을 마치신 후, 아래 버튼을 눌러 바로 출석 내용을 제출(전자서명)해 주세요.
                         </p>
-                        <button onclick="toggleSignatureArea(event)" class="btn-primary" style="width:100%; justify-content:center; border:none; border-radius:8px; cursor:pointer; font-family:'Pretendard', sans-serif; font-size:1rem; font-weight:600; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);">
-                            <i class="ph-bold ph-signature"></i> 필수 교육 이수 서명하기 <i class="ph-bold ph-caret-down" id="sigToggleIcon" style="margin-left:0.5rem;"></i>
+                        <button onclick="toggleSignatureArea(event)" class="btn-primary"
+                            style="width:100%; justify-content:center; border:none; border-radius:8px; cursor:pointer; font-family:'Pretendard', sans-serif; font-size:1rem; font-weight:600; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);">
+                            <i class="ph-bold ph-signature"></i> 필수 교육 이수 서명하기 <i class="ph-bold ph-caret-down"
+                                id="sigToggleIcon" style="margin-left:0.5rem;"></i>
                         </button>
-                        
+
                         <!-- Inline Toggle Area -->
-                        <div id="inlineSignatureArea" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(16, 185, 129, 0.3);">
+                        <div id="inlineSignatureArea"
+                            style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(16, 185, 129, 0.3);">
                             <form id="signatureForm">
                                 <div class="form-group">
                                     <label for="empName" style="color: #047857;">[성명]</label>
@@ -644,13 +678,16 @@
                                     <input type="text" id="empDept" required placeholder="예) 간호부, 원무과, 물리치료센터 등등">
                                 </div>
                                 <div class="form-group">
-                                    <label style="color: #047857; display: flex; justify-content: space-between; align-items: center;">
+                                    <label
+                                        style="color: #047857; display: flex; justify-content: space-between; align-items: center;">
                                         [서명창] 아래 영역에 정자 서명
-                                        <button type="button" class="btn-clear" onclick="clearCanvas()">지우기 <i class="ph-bold ph-eraser"></i></button>
+                                        <button type="button" class="btn-clear" onclick="clearCanvas()">지우기 <i
+                                                class="ph-bold ph-eraser"></i></button>
                                     </label>
                                     <canvas id="signatureCanvas" class="signature-pad"></canvas>
                                 </div>
-                                <button type="submit" class="btn-primary" style="margin-top: 0.5rem; width: 100%; justify-content: center; background: linear-gradient(135deg, #0F766E, #14B8A6); border:none; cursor:pointer;">
+                                <button type="submit" class="btn-primary"
+                                    style="margin-top: 0.5rem; width: 100%; justify-content: center; background: linear-gradient(135deg, #0F766E, #14B8A6); border:none; cursor:pointer;">
                                     <i class="ph-bold ph-paper-plane-tilt"></i> 서명 제출 완료
                                 </button>
                             </form>
@@ -776,13 +813,13 @@
             e.preventDefault();
             if (!areaVisible) {
                 area.style.display = 'block';
-                if(icon) { icon.classList.remove('ph-caret-down'); icon.classList.add('ph-caret-up'); }
+                if (icon) { icon.classList.remove('ph-caret-down'); icon.classList.add('ph-caret-up'); }
                 areaVisible = true;
                 // Calculate canvas size after it becomes visible
                 setTimeout(resizeCanvas, 10);
             } else {
                 area.style.display = 'none';
-                if(icon) { icon.classList.remove('ph-caret-up'); icon.classList.add('ph-caret-down'); }
+                if (icon) { icon.classList.remove('ph-caret-up'); icon.classList.add('ph-caret-down'); }
                 areaVisible = false;
             }
         }
@@ -792,18 +829,18 @@
             const rect = canvas.parentElement.getBoundingClientRect();
             // Create higher res for retina displays
             const ratio = window.devicePixelRatio || 1;
-            
+
             canvas.width = rect.width * ratio;
             canvas.height = 200 * ratio; // Fixed height in CSS is 200px
-            
+
             ctx.scale(ratio, ratio);
-            
+
             // Set pen styles
             ctx.strokeStyle = '#0F766E'; // Primary color
             ctx.lineWidth = 3;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            
+
             clearCanvas();
         }
 
@@ -823,7 +860,7 @@
             const pos = getPos(e);
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-            
+
             // Draw a single dot if just clicking
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
@@ -850,8 +887,8 @@
         canvas.addEventListener('mouseout', stopDrawing);
 
         // Touch Events (Smartphones)
-        canvas.addEventListener('touchstart', startDrawing, {passive: false});
-        canvas.addEventListener('touchmove', draw, {passive: false});
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
         canvas.addEventListener('touchend', stopDrawing);
         canvas.addEventListener('touchcancel', stopDrawing);
 
@@ -860,34 +897,34 @@
         }
 
         // --- 폼 전송 (연동 관리 시트로 보내기) ---
-        document.getElementById('signatureForm').addEventListener('submit', async function(e) {
+        document.getElementById('signatureForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const name = document.getElementById('empName').value;
             const dept = document.getElementById('empDept').value;
-            
+
             // 서명이 비어있는지 체크 (간이 로직)
             const blank = document.createElement('canvas');
             const ratio = window.devicePixelRatio || 1;
             blank.width = canvas.width;
             blank.height = canvas.height;
             const bCtx = blank.getContext('2d');
-            bCtx.clearRect(0,0, blank.width, blank.height);
-            
+            bCtx.clearRect(0, 0, blank.width, blank.height);
+
             if (canvas.toDataURL() === blank.toDataURL()) {
                 alert("서명란이 비어있습니다. 손가락으로 서명을 입력해 주세요.");
                 return;
             }
-            
+
             const signatureImageBase64 = canvas.toDataURL('image/png');
-            
+
             /* 🚨 [연동 완료] 🚨
                과장님이 발급받으신 백엔드 웹앱 URL을 성공적으로 주입했습니다. */
             const googleAppsScriptUrl = "https://script.google.com/macros/s/AKfycbxExxPP4e3gQEtlZCCA7b8LNzvx7944YEXt9PvTVD3XrFdoLk21TUACciXGG4qXa_yz/exec";
 
             if (googleAppsScriptUrl.includes("YOUR_GOOGLE_APPS_SCRIPT_URL_HERE")) {
                 alert(`[로컬 테스트 완료]\n${dept} 부서의 ${name}님, 서명이 입력되었습니다.\n(※ 아직 구글 앱스 스크립트 연결 주소가 입력되지 않아 시트로 전송되지는 않았습니다. 확인 창을 닫습니다.)`);
-                toggleSignatureArea({preventDefault: () => {}}); // Hide inline area after submission
+                toggleSignatureArea({ preventDefault: () => { } }); // Hide inline area after submission
                 this.reset();
                 clearCanvas();
                 return;
@@ -911,17 +948,17 @@
 
                 if (result.result === "success") {
                     alert(`✅ [제출 완료] ${dept} 부서의 ${name}님, 서명이 관리 시트로 성공적으로 전송되었습니다!`);
-                    toggleSignatureArea({preventDefault: () => {}});
+                    toggleSignatureArea({ preventDefault: () => { } });
                     this.reset();
                     clearCanvas();
                 } else {
                     alert(`❌ [오류 발생] 서명 전송 중 문제가 발생했습니다: ${result.message}`);
                 }
-                
+
                 // 버튼 원상복구
                 submitBtn.innerHTML = originalBtnText;
                 submitBtn.disabled = false;
-                
+
             } catch (error) {
                 console.error("Submit Error:", error);
                 alert("❌ 서버와 통신 중 에러가 발생했습니다. 구글 앱스 스크립트 연결을 확인해 주세요.");
