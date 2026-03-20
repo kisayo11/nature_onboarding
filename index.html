@@ -747,8 +747,8 @@
             <div class="step-header">
                 <div class="step-badge" id="step3Badge">3</div>
                 <div class="step-title-wrapper">
-                    <h2 id="step3Title">필수 집합 교육 및 사내망 가입</h2>
-                    <p class="step-desc" id="step3Desc">배치전 현장 교육 수강 및 전자 결재망 등록</p>
+                    <h2 id="step3Title">신규입사자 전자서명 및 사내망 가입</h2>
+                    <p class="step-desc" id="step3Desc">배치전 현장 교육 수강 / 서류작성 / 사내망 가입</p>
                 </div>
             </div>
             <div class="step-body">
@@ -779,7 +779,7 @@
                         </p>
                         <button onclick="toggleSignatureArea(event)" class="btn-primary"
                             style="width:100%; justify-content:center; border:none; border-radius:8px; cursor:pointer; font-family:'Pretendard', sans-serif; font-size:1rem; font-weight:600; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);">
-                            <i class="ph-bold ph-signature"></i> 필수 교육 이수 서명하기 <i class="ph-bold ph-caret-down"
+                            <i class="ph-bold ph-signature"></i> 전자서명하기 <i class="ph-bold ph-caret-down"
                                 id="sigToggleIcon" style="margin-left:0.5rem;"></i>
                         </button>
 
@@ -821,28 +821,10 @@
                                     </div>
                                 </div>
 
-                                <div id="confirmDocsBtnContainer"
-                                    style="display: none; margin-bottom: 1.5rem; text-align: center;">
-                                    <button type="button" class="btn-primary" onclick="confirmDocument()"
-                                        id="confirmDocsBtn"
-                                        style="background: linear-gradient(135deg, #475569, #334155); font-size: 0.95rem; padding: 0.8rem;">
-                                        <i class="ph-bold ph-check-square"></i> 위 내용을 확인했습니다
-                                    </button>
-                                </div>
 
                                 <div class="form-group">
                                     <label for="empJob" style="color: #047857;">[직종 / Job Title]</label>
-                                    <select id="empJob" required
-                                        style="width: 100%; padding: 0.8rem; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: var(--radius-md); font-family: 'Pretendard', sans-serif; font-size: 1rem;">
-                                        <option value="">-- 직종을 선택해주세요 --</option>
-                                        <option value="의사">의사</option>
-                                        <option value="간호사">간호사</option>
-                                        <option value="간호조무사">간호조무사</option>
-                                        <option value="행정직">행정직</option>
-                                        <option value="약사">약사</option>
-                                        <option value="보건직">보건직</option>
-                                        <option value="기타직종">기타직종</option>
-                                    </select>
+                                    <input type="text" id="empJob" required placeholder="예) 간호사, 원무과 등">
                                 </div>
                                 <div class="form-group">
                                     <label for="empDept" style="color: #047857;">[소속 부서 / Department]</label>
@@ -875,14 +857,23 @@
                                     <div class="offboarding-notice">
                                         <h5><i class="ph-bold ph-warning-circle"></i> 퇴사 전 확인 사항</h5>
                                         <label class="notice-item">
-                                            <input type="checkbox" id="resignCheckCard" required>
+                                            <input type="checkbox" id="resignCheckCard">
                                             <span>출입카드(ID카드) 반납 완료</span>
                                         </label>
                                         <label class="notice-item">
-                                            <input type="checkbox" id="resignCheckUniform" required>
+                                            <input type="checkbox" id="resignCheckUniform">
                                             <span>6개월 이내 퇴사 시 잠복결핵 검사 및 유니폼 비용 차감에 동의함</span>
                                         </label>
                                     </div>
+                                </div>
+
+                                <div id="confirmDocsBtnContainer"
+                                    style="display: none; margin-bottom: 1.5rem; text-align: center;">
+                                    <button type="button" class="btn-primary" onclick="confirmDocument()"
+                                        id="confirmDocsBtn"
+                                        style="background: linear-gradient(135deg, #475569, #334155); font-size: 0.95rem; padding: 0.8rem;">
+                                        <i class="ph-bold ph-check-square"></i> 위 내용을 확인했습니다
+                                    </button>
                                 </div>
 
                                 <!-- Signature Section (Initially Hidden) -->
@@ -1076,9 +1067,13 @@
             document.getElementById('mode-offboarding').classList.toggle('active', mode === 'offboarding');
             document.getElementById('onboardingFields').style.display = mode === 'onboarding' ? 'block' : 'none';
             document.getElementById('offboardingFields').style.display = mode === 'offboarding' ? 'block' : 'none';
+
+            // Required fields toggle
             document.getElementById('empBirth').required = mode === 'onboarding';
             document.getElementById('empPhone').required = mode === 'onboarding';
             document.getElementById('resignDate').required = mode === 'offboarding';
+            document.getElementById('resignCheckCard').required = mode === 'offboarding';
+            document.getElementById('resignCheckUniform').required = mode === 'offboarding';
 
             const leftTab = document.getElementById('tab-left');
             const rightTab = document.getElementById('tab-right');
@@ -1105,7 +1100,7 @@
 
                 // Update signature button text
                 document.querySelector('button[onclick="toggleSignatureArea(event)"]').innerHTML =
-                    '<i class="ph-bold ph-signature"></i> 필수 교육 이수 서명하기 <i class="ph-bold ph-caret-down" id="sigToggleIcon" style="margin-left:0.5rem;"></i>';
+                    '<i class="ph-bold ph-signature"></i> 전자서명하기 <i class="ph-bold ph-caret-down" id="sigToggleIcon" style="margin-left:0.5rem;"></i>';
 
                 // Show all steps for Onboarding
                 document.querySelectorAll('.step-card').forEach((card, idx) => {
@@ -1141,7 +1136,7 @@
                 document.getElementById('step3Desc').innerText = '사직원 및 보안서약서 작성을 진행합니다.';
                 document.getElementById('step3Checklist').style.display = 'none';
 
-                // Hide steps 1, 2, 4, 5 for Offboarding (only show step 3)
+                // Show only step 3 for Offboarding
                 document.querySelectorAll('.step-card').forEach((card, idx) => {
                     if (idx !== 2) card.style.display = 'none'; // Step index starts from 0 (Step 3 is idx 2)
                 });
