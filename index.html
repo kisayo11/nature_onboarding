@@ -514,6 +514,112 @@
             box-shadow: var(--shadow-glass);
             color: var(--primary-dark);
         }
+
+        /* Document Selector (Buttons instead of Dropdown) */
+        .doc-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .doc-tab {
+            background: #f1f5f9;
+            border: 2px solid #e2e8f0;
+            padding: 1rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .doc-tab i {
+            font-size: 1.5rem;
+        }
+
+        .doc-tab.active {
+            background: #10B981;
+            border-color: #059669;
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .doc-tab:hover:not(.active) {
+            border-color: #cbd5e1;
+            background: #e2e8f0;
+        }
+
+        .doc-tab.viewed:not(.active) {
+            background: #ecfdf5;
+            border-color: #10B981;
+            color: #047857;
+        }
+
+        /* Mode Selector */
+        .mode-selector {
+            display: flex;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            color: #64748b;
+        }
+
+        .mode-tab.active {
+            background: white;
+            color: #0d9488;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Checklist Offboarding */
+        .offboarding-notice {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .offboarding-notice h5 {
+            color: #9a3412;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notice-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #7c2d12;
+            margin-bottom: 0.4rem;
+        }
+
+        .notice-item input {
+            margin-top: 0.1rem;
+        }
     </style>
 </head>
 
@@ -524,7 +630,18 @@
             <i class="ph-fill ph-hospital"></i>
         </div>
         <h1>입사를 환영합니다! 🎉</h1>
-        <p>네이처요양병원 신규 가족을 위한 온보딩 허브입니다.<br>원활한 출근 준비를 위해 아래 필수 과정을 진행해 주세요.</p>
+        <p>네이처요양병원 신규 가족을 위한 온보딩 허브입니다.</p>
+
+        <!-- Mode Selector at the top -->
+        <div class="mode-selector"
+            style="max-width:320px; margin: 2rem auto 0; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+            <div class="mode-tab active" id="mode-onboarding" onclick="switchMode('onboarding')">
+                <i class="ph ph-user-plus"></i> 입사자
+            </div>
+            <div class="mode-tab" id="mode-offboarding" onclick="switchMode('offboarding')">
+                <i class="ph ph-user-minus"></i> 퇴사자
+            </div>
+        </div>
     </header>
 
     <main class="timeline">
@@ -628,14 +745,14 @@
         <!-- Step 3: 현장 교육 및 사내망 -->
         <article class="step-card">
             <div class="step-header">
-                <div class="step-badge">3</div>
+                <div class="step-badge" id="step3Badge">3</div>
                 <div class="step-title-wrapper">
-                    <h2>필수 집합 교육 및 사내망 가입</h2>
-                    <p class="step-desc">배치전 현장 교육 수강 및 전자 결재망 등록</p>
+                    <h2 id="step3Title">필수 집합 교육 및 사내망 가입</h2>
+                    <p class="step-desc" id="step3Desc">배치전 현장 교육 수강 및 전자 결재망 등록</p>
                 </div>
             </div>
             <div class="step-body">
-                <ul class="check-list">
+                <ul class="check-list" id="step3Checklist">
                     <li>
                         <i class="ph-bold ph-chalkboard-teacher"></i> <strong>배치 전 교육:</strong> 원내 교육장 참석 후 스마트폰 출석 서명
                         제출 필수
@@ -651,13 +768,14 @@
                     <!-- 오프라인 자체 교육 (현장형 스마트 서명 토글) -->
                     <div
                         style="background: rgba(16, 185, 129, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.2); position: relative; overflow: hidden;">
-                        <span
+                        <span id="smartAttendanceBadge"
                             style="position:absolute; top:-1px; right:-1px; background:var(--primary-light); color:white; padding: 0.2rem 0.6rem; border-radius: 0 12px 0 8px; font-size:0.75rem; font-weight:bold;">스마트
                             출석</span>
-                        <h4 style="margin-bottom:0.75rem; color: #047857; font-size: 1.05rem;"><i
-                                class="ph-fill ph-chalkboard-teacher"></i> 오프라인 집합 교육</h4>
+                        <h4 style="margin-bottom:0.75rem; color: #047857; font-size: 1.05rem;" id="step3Subtitle">
+                            <i class="ph-fill ph-chalkboard-teacher"></i> 신규입사자 배치전 집합 교육 / 개인정보 보호 및 보안서약서
+                        </h4>
                         <p style="font-size: 0.85rem; color: #065F46; margin-bottom: 1rem;">
-                            원내 교육장에서 오프라인 교육 수강을 마치신 후, 아래 버튼을 눌러 바로 출석 내용을 제출(전자서명)해 주세요.
+                            아래 버튼을 눌러 바로 서류 확인 후 전자서명을 제출해 주세요.
                         </p>
                         <button onclick="toggleSignatureArea(event)" class="btn-primary"
                             style="width:100%; justify-content:center; border:none; border-radius:8px; cursor:pointer; font-family:'Pretendard', sans-serif; font-size:1rem; font-weight:600; background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);">
@@ -668,34 +786,128 @@
                         <!-- Inline Toggle Area -->
                         <div id="inlineSignatureArea"
                             style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(16, 185, 129, 0.3);">
+
+
                             <form id="signatureForm">
+                                <!-- Document Selection -->
+                                <!-- Document Switcher -->
                                 <div class="form-group">
-                                    <label for="empName" style="color: #047857;">[성명]</label>
-                                    <input type="text" id="empName" required placeholder="예) 네이처">
+                                    <label id="docSelectLabel"
+                                        style="color: #047857; margin-bottom: 1rem; display: block;">[입사 서류를 선택하여 내용을
+                                        확인해주세요]</label>
+                                    <div class="doc-selector" id="docTypeSelector">
+                                        <div class="doc-tab" onclick="selectDocTab('training', this)" id="tab-left">
+                                            <i class="ph-bold ph-shield-check" id="tab-left-icon"></i>
+                                            <span id="tab-left-text">안전보건교육</span>
+                                        </div>
+                                        <div class="doc-tab" onclick="selectDocTab('privacy', this)" id="tab-right">
+                                            <i class="ph-bold ph-lock-key" id="tab-right-icon"></i>
+                                            <span id="tab-right-text">개인정보서약서</span>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="docType" value="">
                                 </div>
-                                <div class="form-group">
-                                    <label for="empDept" style="color: #047857;">[부서]</label>
-                                    <input type="text" id="empDept" required placeholder="예) 간호부, 원무과, 물리치료센터 등등">
-                                </div>
-                                <div class="form-group">
+
+                                <!-- Document Preview Area -->
+                                <div id="previewContainer"
+                                    style="display: none; margin-bottom: 1.5rem; background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0;">
                                     <label
-                                        style="color: #047857; display: flex; justify-content: space-between; align-items: center;">
-                                        [서명창] 아래 영역에 정자 서명
-                                        <button type="button" class="btn-clear" onclick="clearCanvas()">지우기 <i
-                                                class="ph-bold ph-eraser"></i></button>
-                                    </label>
-                                    <canvas id="signatureCanvas" class="signature-pad"></canvas>
+                                        style="color: #047857; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">[서류
+                                        미리보기 / Document Preview]</label>
+                                    <div
+                                        style="position: relative; overflow: hidden; border-radius: 8px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                        <img id="previewImage" src="" alt="Document Preview"
+                                            style="width: 100%; height: auto; display: block;">
+                                    </div>
                                 </div>
-                                <button type="submit" class="btn-primary"
-                                    style="margin-top: 0.5rem; width: 100%; justify-content: center; background: linear-gradient(135deg, #0F766E, #14B8A6); border:none; cursor:pointer;">
-                                    <i class="ph-bold ph-paper-plane-tilt"></i> 서명 제출 완료
-                                </button>
+
+                                <div id="confirmDocsBtnContainer"
+                                    style="display: none; margin-bottom: 1.5rem; text-align: center;">
+                                    <button type="button" class="btn-primary" onclick="confirmDocument()"
+                                        id="confirmDocsBtn"
+                                        style="background: linear-gradient(135deg, #475569, #334155); font-size: 0.95rem; padding: 0.8rem;">
+                                        <i class="ph-bold ph-check-square"></i> 위 내용을 확인했습니다
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="empJob" style="color: #047857;">[직종 / Job Title]</label>
+                                    <select id="empJob" required
+                                        style="width: 100%; padding: 0.8rem; border: 1px solid rgba(0, 0, 0, 0.1); border-radius: var(--radius-md); font-family: 'Pretendard', sans-serif; font-size: 1rem;">
+                                        <option value="">-- 직종을 선택해주세요 --</option>
+                                        <option value="의사">의사</option>
+                                        <option value="간호사">간호사</option>
+                                        <option value="간호조무사">간호조무사</option>
+                                        <option value="행정직">행정직</option>
+                                        <option value="약사">약사</option>
+                                        <option value="보건직">보건직</option>
+                                        <option value="기타직종">기타직종</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empDept" style="color: #047857;">[소속 부서 / Department]</label>
+                                    <input type="text" id="empDept" required placeholder="예) 간호부, 원무과 등">
+                                </div>
+                                <div class="form-group">
+                                    <label for="empName" style="color: #047857;">[성명 / Name]</label>
+                                    <input type="text" id="empName" required placeholder="예) 홍길동">
+                                </div>
+
+                                <!-- Onboarding Only -->
+                                <div id="onboardingFields">
+                                    <div class="form-group">
+                                        <label for="empBirth" style="color: #047857;">[생년월일 / Date of Birth]</label>
+                                        <input type="date" id="empBirth">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="empPhone" style="color: #047857;">[연락처 / Phone]</label>
+                                        <input type="tel" id="empPhone" placeholder="010-0000-0000"
+                                            pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}">
+                                    </div>
+                                </div>
+
+                                <!-- Offboarding Only -->
+                                <div id="offboardingFields" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="resignDate" style="color: #047857;">[사직일 / Resignation Date]</label>
+                                        <input type="date" id="resignDate">
+                                    </div>
+                                    <div class="offboarding-notice">
+                                        <h5><i class="ph-bold ph-warning-circle"></i> 퇴사 전 확인 사항</h5>
+                                        <label class="notice-item">
+                                            <input type="checkbox" id="resignCheckCard" required>
+                                            <span>출입카드(ID카드) 반납 완료</span>
+                                        </label>
+                                        <label class="notice-item">
+                                            <input type="checkbox" id="resignCheckUniform" required>
+                                            <span>6개월 이내 퇴사 시 잠복결핵 검사 및 유니폼 비용 차감에 동의함</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Signature Section (Initially Hidden) -->
+                                <div id="signatureSection"
+                                    style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed rgba(16, 185, 129, 0.3);">
+                                    <div class="form-group">
+                                        <label
+                                            style="color: #047857; display: flex; justify-content: space-between; align-items: center;">
+                                            [서명창] 아래 영역에 정자 서명
+                                            <button type="button" class="btn-clear" onclick="clearCanvas()">지우기 <i
+                                                    class="ph-bold ph-eraser"></i></button>
+                                        </label>
+                                        <canvas id="signatureCanvas" class="signature-pad"></canvas>
+                                    </div>
+                                    <button type="submit" id="submitBtn" class="btn-primary"
+                                        style="margin-top: 0.5rem; width: 100%; justify-content: center; background: linear-gradient(135deg, #0F766E, #14B8A6);">
+                                        <i class="ph-bold ph-paper-plane-tilt"></i> 서명 제출 완료
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>
 
                     <!-- 비즈메카 -->
-                    <div style="padding: 0 1rem;">
+                    <div id="bizmekaSection" style="padding: 0 1rem;">
                         <a href="https://ezsso.bizmeka.com/loginForm.do" target="_blank"
                             class="btn-primary btn-outline">
                             <i class="ph-bold ph-link"></i> 비즈메카 (사내망) 가입
@@ -752,7 +964,7 @@
                             여자탈의실: <strong>지하 2층 안쪽</strong><br>
                             남자탈의실: <strong>1.5층</strong>
                         </p>
-                        <p>&copy; 2024 네이처요양병원. All rights reserved.</p>
+                        <p>&copy; 2026 네이처요양병원. All rights reserved.</p>
                     </div>
                 </div>
             </div>
@@ -763,7 +975,7 @@
 
 
     <footer class="footer">
-        <p>온보딩 준비 중 막히는 부분이 있으시다면 언제든 총무팀/원무과로 문의해 주세요.</p>
+        <p>온보딩/오프보딩 준비 중 막히는 부분이 있으시다면 언제든 총무팀/원무과로 문의해 주세요.</p>
         <div class="contact-pill-wrap">
             <div class="contact-pill">
                 <i class="ph-fill ph-phone"></i> 내선 905
@@ -806,16 +1018,30 @@
         const icon = document.getElementById('sigToggleIcon');
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
+        const docTypeInput = document.getElementById('docType');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const signatureSection = document.getElementById('signatureSection');
+        const googleAppsScriptUrl = "https://script.google.com/macros/s/AKfycbxExxPP4e3gQEtlZCCA7b8LNzvx7944YEXt9PvTVD3XrFdoLk21TUACciXGG4qXa_yz/exec";
+
         let isDrawing = false;
         let areaVisible = false;
+        let currentMode = 'onboarding'; // 'onboarding' or 'offboarding'
+        const viewedDocs = { training: false, privacy: false, resignation: false, securityOff: false };
+
+        const docs = {
+            training: '1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU', // 신규안전
+            privacy: '13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk',  // 개인정보(입사)
+            resignation: '16nko2JPa2Xr7NFhTtwK8FB4PEdPNdrXJ',         // 사직서 (PNG 미리보기)
+            securityOff: '1jfkJNYrYxTrqKVkwO8pMR2BJd8baHsxe'          // 정보보안서약서 (PNG 미리보기)
+        };
 
         function toggleSignatureArea(e) {
-            e.preventDefault();
+            if (e) e.preventDefault();
             if (!areaVisible) {
                 area.style.display = 'block';
                 if (icon) { icon.classList.remove('ph-caret-down'); icon.classList.add('ph-caret-up'); }
                 areaVisible = true;
-                // Calculate canvas size after it becomes visible
                 setTimeout(resizeCanvas, 10);
             } else {
                 area.style.display = 'none';
@@ -825,22 +1051,15 @@
         }
 
         function resizeCanvas() {
-            // Get actual styled width/height
             const rect = canvas.parentElement.getBoundingClientRect();
-            // Create higher res for retina displays
             const ratio = window.devicePixelRatio || 1;
-
             canvas.width = rect.width * ratio;
-            canvas.height = 200 * ratio; // Fixed height in CSS is 200px
-
+            canvas.height = 200 * ratio;
             ctx.scale(ratio, ratio);
-
-            // Set pen styles
-            ctx.strokeStyle = '#0F766E'; // Primary color
+            ctx.strokeStyle = '#0F766E';
             ctx.lineWidth = 3;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-
             clearCanvas();
         }
 
@@ -848,10 +1067,138 @@
             const rect = canvas.getBoundingClientRect();
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
             const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('mode-onboarding').classList.toggle('active', mode === 'onboarding');
+            document.getElementById('mode-offboarding').classList.toggle('active', mode === 'offboarding');
+            document.getElementById('onboardingFields').style.display = mode === 'onboarding' ? 'block' : 'none';
+            document.getElementById('offboardingFields').style.display = mode === 'offboarding' ? 'block' : 'none';
+            document.getElementById('empBirth').required = mode === 'onboarding';
+            document.getElementById('empPhone').required = mode === 'onboarding';
+            document.getElementById('resignDate').required = mode === 'offboarding';
+
+            const leftTab = document.getElementById('tab-left');
+            const rightTab = document.getElementById('tab-right');
+            const leftIcon = document.getElementById('tab-left-icon');
+            const rightIcon = document.getElementById('tab-right-icon');
+            const leftText = document.getElementById('tab-left-text');
+            const rightText = document.getElementById('tab-right-text');
+            const docLabel = document.getElementById('docSelectLabel');
+
+            // Header titles update
+            const mainTitle = document.querySelector('.header h1');
+            const mainDesc = document.querySelector('.header p');
+
+            if (mode === 'onboarding') {
+                mainTitle.innerHTML = '입사를 환영합니다! 🎉';
+                mainDesc.innerHTML = '네이처요양병원 신규 가족을 위한 온보딩 허브입니다.<br>원활한 출근 준비를 위해 아래 필수 과정을 진행해 주세요.';
+                docLabel.innerText = '[입사 서류를 선택하여 내용을 확인해주세요]';
+                leftText.innerText = '안전보건교육';
+                rightText.innerText = '개인정보서약서';
+                leftIcon.className = 'ph-bold ph-shield-check';
+                rightIcon.className = 'ph-bold ph-lock-key';
+                leftTab.onclick = () => selectDocTab('training', leftTab);
+                rightTab.onclick = () => selectDocTab('privacy', rightTab);
+
+                // Update signature button text
+                document.querySelector('button[onclick="toggleSignatureArea(event)"]').innerHTML =
+                    '<i class="ph-bold ph-signature"></i> 필수 교육 이수 서명하기 <i class="ph-bold ph-caret-down" id="sigToggleIcon" style="margin-left:0.5rem;"></i>';
+
+                // Show all steps for Onboarding
+                document.querySelectorAll('.step-card').forEach((card, idx) => {
+                    card.style.display = 'block';
+                });
+
+                // Step 3 titles restore
+                document.getElementById('step3Title').innerText = '필수 집합 교육 및 사내망 가입';
+                document.getElementById('step3Subtitle').innerHTML = '<i class="ph-fill ph-chalkboard-teacher"></i> 신규입사자 배치전 집합 교육 / 개인정보 보호 및 보안서약서';
+                document.getElementById('step3Desc').innerText = '배치전 현장 교육 수강 및 전자 결재망 등록';
+                document.getElementById('step3Checklist').style.display = 'block';
+                document.getElementById('step3Badge').innerText = '3';
+                document.getElementById('smartAttendanceBadge').style.display = 'block';
+                document.getElementById('bizmekaSection').style.display = 'block';
+            } else {
+                mainTitle.innerHTML = '수고하셨습니다 🍀';
+                mainDesc.innerHTML = '네이처요양병원 퇴사 절차를 진행해 주세요.<br>그동안의 노고에 진심으로 감사드립니다.';
+                docLabel.innerText = '[퇴직 서류를 선택하여 전자서명을 제출해 주세요]';
+                leftText.innerText = '사직원';
+                rightText.innerText = '보안서약서(퇴사)';
+                leftIcon.className = 'ph-bold ph-file-text';
+                rightIcon.className = 'ph-bold ph-shield-warning';
+                leftTab.onclick = () => selectDocTab('resignation', leftTab);
+                rightTab.onclick = () => selectDocTab('securityOff', rightTab);
+
+                // Update signature button text
+                document.querySelector('button[onclick="toggleSignatureArea(event)"]').innerHTML =
+                    '<i class="ph-bold ph-signature"></i> 퇴사 관련 서류 서명하기 <i class="ph-bold ph-caret-down" id="sigToggleIcon" style="margin-left:0.5rem;"></i>';
+
+                // Step 3 titles for Offboarding
+                document.getElementById('step3Title').innerText = '퇴사자 서류작성';
+                document.getElementById('step3Subtitle').innerHTML = '<i class="ph-fill ph-chalkboard-teacher"></i> 사직원/정보보안서약서';
+                document.getElementById('step3Desc').innerText = '사직원 및 보안서약서 작성을 진행합니다.';
+                document.getElementById('step3Checklist').style.display = 'none';
+
+                // Hide steps 1, 2, 4, 5 for Offboarding (only show step 3)
+                document.querySelectorAll('.step-card').forEach((card, idx) => {
+                    if (idx !== 2) card.style.display = 'none'; // Step index starts from 0 (Step 3 is idx 2)
+                });
+
+                document.getElementById('step3Badge').innerHTML = '<i class="ph-bold ph-file-text"></i>';
+                document.getElementById('smartAttendanceBadge').style.display = 'none';
+                document.getElementById('bizmekaSection').style.display = 'none';
+            }
+            resetReviewState();
+        }
+
+        function resetReviewState() {
+            document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+            previewContainer.style.display = 'none';
+            document.getElementById('confirmDocsBtnContainer').style.display = 'none';
+            signatureSection.style.display = 'none';
+            viewedDocs.training = viewedDocs.privacy = viewedDocs.resignation = viewedDocs.securityOff = false;
+        }
+
+        function selectDocTab(type, element) {
+            document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+            element.classList.add('active');
+
+            // Show preview image for both modes
+            previewImage.src = `https://drive.google.com/thumbnail?id=${docs[type]}&sz=w1200`;
+            previewContainer.style.display = 'block';
+
+            signatureSection.style.display = 'none';
+            viewedDocs[type] = true;
+
+            const allViewed = (currentMode === 'onboarding' && viewedDocs.training && viewedDocs.privacy) ||
+                (currentMode === 'offboarding' && viewedDocs.resignation && viewedDocs.securityOff);
+
+            if (allViewed) {
+                const confirmBtn = document.getElementById('confirmDocsBtn');
+                const confirmBtnContainer = document.getElementById('confirmDocsBtnContainer');
+                confirmBtnContainer.style.display = 'block';
+                confirmBtn.innerHTML = '<i class="ph-bold ph-check-circle"></i> 모든 서류 내용을 확인했습니다';
+                confirmBtn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+            }
+        }
+
+        function confirmDocument() {
+            const fields = ['empJob', 'empDept', 'empName'];
+            if (currentMode === 'onboarding') fields.push('empBirth', 'empPhone');
+            else fields.push('resignDate');
+
+            for (const id of fields) {
+                if (!document.getElementById(id).value) {
+                    alert("정보를 모두 입력해 주세요!");
+                    document.getElementById(id).focus();
+                    return;
+                }
+            }
+            signatureSection.style.display = 'block';
+            docTypeInput.value = currentMode === 'onboarding' ? "신규안전+개인정보" : "사직원+보안서약";
+            setTimeout(() => { resizeCanvas(); signatureSection.scrollIntoView({ behavior: 'smooth' }); }, 100);
         }
 
         function startDrawing(e) {
@@ -860,111 +1207,64 @@
             const pos = getPos(e);
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-
-            // Draw a single dot if just clicking
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
         }
+        function draw(e) { if (!isDrawing) return; e.preventDefault(); const pos = getPos(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }
+        function stopDrawing() { if (!isDrawing) return; isDrawing = false; ctx.closePath(); }
 
-        function draw(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-            const pos = getPos(e);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-        }
-
-        function stopDrawing() {
-            if (!isDrawing) return;
-            isDrawing = false;
-            ctx.closePath();
-        }
-
-        // Mouse Events
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
-        // Touch Events (Smartphones)
         canvas.addEventListener('touchstart', startDrawing, { passive: false });
         canvas.addEventListener('touchmove', draw, { passive: false });
         canvas.addEventListener('touchend', stopDrawing);
-        canvas.addEventListener('touchcancel', stopDrawing);
+        function clearCanvas() { ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1)); }
 
-        function clearCanvas() {
-            ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
-        }
-
-        // --- 폼 전송 (연동 관리 시트로 보내기) ---
         document.getElementById('signatureForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-
-            const name = document.getElementById('empName').value;
-            const dept = document.getElementById('empDept').value;
-
-            // 서명이 비어있는지 체크 (간이 로직)
+            // Check if blank
             const blank = document.createElement('canvas');
-            const ratio = window.devicePixelRatio || 1;
-            blank.width = canvas.width;
-            blank.height = canvas.height;
-            const bCtx = blank.getContext('2d');
-            bCtx.clearRect(0, 0, blank.width, blank.height);
+            blank.width = canvas.width; blank.height = canvas.height;
+            if (canvas.toDataURL() === blank.toDataURL()) { alert("서명을 입력해 주세요."); return; }
 
-            if (canvas.toDataURL() === blank.toDataURL()) {
-                alert("서명란이 비어있습니다. 손가락으로 서명을 입력해 주세요.");
-                return;
-            }
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '전송 중...';
 
-            const signatureImageBase64 = canvas.toDataURL('image/png');
-
-            /* 🚨 [연동 완료] 🚨
-               과장님이 발급받으신 백엔드 웹앱 URL을 성공적으로 주입했습니다. */
-            const googleAppsScriptUrl = "https://script.google.com/macros/s/AKfycbxExxPP4e3gQEtlZCCA7b8LNzvx7944YEXt9PvTVD3XrFdoLk21TUACciXGG4qXa_yz/exec";
-
-            if (googleAppsScriptUrl.includes("YOUR_GOOGLE_APPS_SCRIPT_URL_HERE")) {
-                alert(`[로컬 테스트 완료]\n${dept} 부서의 ${name}님, 서명이 입력되었습니다.\n(※ 아직 구글 앱스 스크립트 연결 주소가 입력되지 않아 시트로 전송되지는 않았습니다. 확인 창을 닫습니다.)`);
-                toggleSignatureArea({ preventDefault: () => { } }); // Hide inline area after submission
-                this.reset();
-                clearCanvas();
-                return;
-            }
+            const payload = {
+                name: document.getElementById('empName').value,
+                dept: document.getElementById('empDept').value,
+                job: document.getElementById('empJob').value,
+                birth: document.getElementById('empBirth').value,
+                phone: document.getElementById('empPhone').value,
+                resignDate: document.getElementById('resignDate').value,
+                checkCard: document.getElementById('resignCheckCard').checked ? "완료" : "미완료",
+                checkUniform: document.getElementById('resignCheckUniform').checked ? "동의" : "미동의",
+                docType: docTypeInput.value,
+                signature: canvas.toDataURL('image/png')
+            };
 
             try {
-                // 서명 버튼을 로딩 상태로 변경
-                const submitBtn = this.querySelector('button[type="submit"]');
-                const originalBtnText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '서명 전송 중... 잠시만 기다려주세요.';
-                submitBtn.disabled = true;
-
-                // 시트로 데이터 전송 (CORS 우회 방식)
                 const response = await fetch(googleAppsScriptUrl, {
                     method: 'POST',
-                    body: JSON.stringify({ name: name, dept: dept, signature: signatureImageBase64 }),
+                    body: JSON.stringify(payload),
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                 });
-
                 const result = await response.json();
-
                 if (result.result === "success") {
-                    alert(`✅ [제출 완료] ${dept} 부서의 ${name}님, 서명이 관리 시트로 성공적으로 전송되었습니다!`);
-                    toggleSignatureArea({ preventDefault: () => { } });
-                    this.reset();
-                    clearCanvas();
+                    alert('✅ 제출이 완료되었습니다!');
+                    location.reload();
                 } else {
-                    alert(`❌ [오류 발생] 서명 전송 중 문제가 발생했습니다: ${result.message}`);
+                    alert('❌ 오류: ' + result.message);
                 }
-
-                // 버튼 원상복구
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.disabled = false;
-
             } catch (error) {
-                console.error("Submit Error:", error);
-                alert("❌ 서버와 통신 중 에러가 발생했습니다. 구글 앱스 스크립트 연결을 확인해 주세요.");
-                const submitBtn = this.querySelector('button[type="submit"]');
-                submitBtn.innerHTML = '<i class="ph-bold ph-paper-plane-tilt"></i> 서명 제출 완료';
+                console.error(error);
+                alert('❌ 서버 통신 오류가 발생했습니다.');
+            } finally {
                 submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         });
     </script>
