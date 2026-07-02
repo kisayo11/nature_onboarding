@@ -94,11 +94,11 @@ function generateSelectedRows() {
 
       try {
         if (!row[8]) { // I열: 안전교육
-          const url = createEducationDoc(TEMPLATE_SAFETY_ID, "안전보건교육", name, dept, job, birth, phone, "", sigUrl);
+          const url = createEducationDoc(TEMPLATE_SAFETY_ID, "안전보건교육", name, dept, job, birth, phone, "", sigUrl, row[0]);
           sheet.getRange(currentRow, 9).setValue(url);
         }
         if (!row[9]) { // J열: 개인정보(입)
-          const url = createEducationDoc(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", name, dept, job, birth, phone, "", sigUrl);
+          const url = createEducationDoc(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", name, dept, job, birth, phone, "", sigUrl, row[0]);
           sheet.getRange(currentRow, 10).setValue(url);
         }
         count++;
@@ -112,11 +112,11 @@ function generateSelectedRows() {
 
       try {
         if (!row[9]) { // J열: 사직서
-          const url = createEducationDoc(TEMPLATE_RESIGNATION_ID, "사직원", name, dept, job, "", "", resignDate, sigUrl);
+          const url = createEducationDoc(TEMPLATE_RESIGNATION_ID, "사직원", name, dept, job, "", "", resignDate, sigUrl, row[0]);
           sheet.getRange(currentRow, 10).setValue(url);
         }
         if (!row[10]) { // K열: 보안서약(퇴)
-          const url = createEducationDoc(TEMPLATE_SECURITY_OFF_ID, "보안서약_퇴사", name, dept, job, "", "", resignDate, sigUrl);
+          const url = createEducationDoc(TEMPLATE_SECURITY_OFF_ID, "보안서약_퇴사", name, dept, job, "", "", resignDate, sigUrl, row[0]);
           sheet.getRange(currentRow, 11).setValue(url);
         }
         count++;
@@ -128,9 +128,9 @@ function generateSelectedRows() {
 }
 
 // --- 3. 개별 문서 생성 로직 ---
-function createEducationDoc(templateId, docLabel, name, dept, job, birth, phone, resignDate, signatureUrl) {
-  const today = new Date();
-  const dateStr = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy. MM. dd.");
+function createEducationDoc(templateId, docLabel, name, dept, job, birth, phone, resignDate, signatureUrl, timestamp) {
+  const docDate = (timestamp instanceof Date) ? timestamp : (timestamp ? new Date(timestamp) : new Date());
+  const dateStr = Utilities.formatDate(docDate, Session.getScriptTimeZone(), "yyyy. MM. dd.");
 
   if (!signatureUrl || !signatureUrl.includes("id=")) {
     throw new Error("올바른 서명 URL이 없습니다.");
