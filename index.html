@@ -1002,6 +1002,17 @@
             stepCards.forEach(card => {
                 observer.observe(card);
             });
+
+            // URL 파라미터 또는 해시값에 따라 초기 모드 설정 (입사자 vs 퇴사자)
+            const urlParams = new URLSearchParams(window.location.search);
+            const modeParam = urlParams.get('mode');
+            const hash = decodeURIComponent(window.location.hash);
+
+            if (modeParam === 'offboarding' || hash === '#offboarding' || hash === '#퇴사자') {
+                switchMode('offboarding');
+            } else {
+                switchMode('onboarding');
+            }
         });
 
         // --- 전자서명 토글 및 캔버스 로직 ---
