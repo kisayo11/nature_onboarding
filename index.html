@@ -1008,7 +1008,7 @@
             const modeParam = urlParams.get('mode');
             const hash = decodeURIComponent(window.location.hash);
 
-            if (modeParam === 'offboarding' || hash === '#offboarding' || hash === '#퇴사자') {
+            if (modeParam === 'offboarding' || hash === '#offboarding' || hash === '#off' || hash === '#퇴사자') {
                 switchMode('offboarding');
             } else {
                 switchMode('onboarding');
