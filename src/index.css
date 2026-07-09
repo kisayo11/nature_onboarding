@@ -1,0 +1,722 @@
+/* Modern Premium Aesthetics System */
+:root {
+    /* Hospital Trust Colors - Deep Teal & Soft Mint */
+    --primary: #0F766E;
+    --primary-light: #14B8A6;
+    --primary-dark: #0F52BA;
+
+    /* Backgrounds - Soft Gradients */
+    --bg-body: #F0FDF4;
+    --bg-card: rgba(255, 255, 255, 0.85);
+
+    /* Text */
+    --text-main: #1E293B;
+    --text-muted: #64748B;
+
+    /* Layout & Effects */
+    --radius-lg: 20px;
+    --radius-md: 12px;
+    --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --border-glass: 1px solid rgba(255, 255, 255, 0.4);
+    --transition-bounce: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Pretendard', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #dcfce7 100%);
+    background-attachment: fixed;
+    color: var(--text-main);
+    line-height: 1.6;
+    min-height: 100vh;
+    padding-bottom: 4rem;
+}
+
+/* --- Animations --- */
+@keyframes fadeInSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Header (Hero Section) --- */
+.header {
+    padding: 3rem 1.5rem 2rem;
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+    animation: fadeInSlideUp 0.8s ease-out forwards;
+}
+
+.hospital-logo-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary));
+    border-radius: 20px;
+    box-shadow: 0 10px 20px rgba(15, 118, 110, 0.2);
+    color: white;
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+    transform: rotate(-5deg);
+}
+
+.header h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.5px;
+}
+
+.header p {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* --- Timeline Container --- */
+.timeline {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    position: relative;
+}
+
+/* Connecting line for timeline */
+.timeline::before {
+    content: '';
+    position: absolute;
+    top: 2rem;
+    bottom: 2rem;
+    left: 2.5rem;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--primary-light), transparent);
+    border-radius: 3px;
+    z-index: 0;
+    opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+    .timeline::before {
+        display: none;
+    }
+}
+
+/* --- Step Cards (Glassmorphism) --- */
+.step-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem;
+    margin-bottom: 2.5rem;
+    box-shadow: var(--shadow-glass);
+    position: relative;
+    z-index: 1;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: var(--transition-bounce);
+}
+
+.step-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.step-card:hover {
+    transform: translateY(-5px) scale(1.01);
+    box-shadow: 0 15px 35px 0 rgba(31, 38, 135, 0.12);
+}
+
+.step-card.optional {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px dashed rgba(100, 116, 139, 0.3);
+}
+
+/* --- Steps Header --- */
+.step-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.step-badge {
+    flex-shrink: 0;
+    width: 3rem;
+    height: 3rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 10px rgba(15, 118, 110, 0.3);
+}
+
+.optional .step-badge {
+    background: var(--text-muted);
+    box-shadow: none;
+}
+
+.step-title-wrapper {
+    flex-grow: 1;
+}
+
+.step-title-wrapper h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+}
+
+.step-desc {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+/* --- Lists & Elements --- */
+.check-list {
+    list-style: none;
+    margin: 1.5rem 0;
+    background: rgba(255, 255, 255, 0.5);
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.check-list li {
+    position: relative;
+    padding-left: 2rem;
+    margin-bottom: 1rem;
+    color: var(--text-main);
+    font-size: 0.95rem;
+}
+
+.check-list li:last-child {
+    margin-bottom: 0;
+}
+
+.check-list li i {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    color: var(--primary-light);
+    font-size: 1.25rem;
+}
+
+.text-warning {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.85em;
+    color: #E11D48;
+    background: #FFF1F2;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border-left: 3px solid #E11D48;
+}
+
+/* --- Role Breakdown Box --- */
+.role-breakdown {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.role-group {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(15, 118, 110, 0.1);
+    border-left: 4px solid var(--primary-light);
+    padding: 1rem 1.25rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.role-group.admin {
+    border-left-color: var(--text-muted);
+}
+
+.role-group h4 {
+    font-size: 1.05rem;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.role-group p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.tag {
+    display: inline-block;
+    background: #eff6ff;
+    color: #1e40af;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+/* --- Buttons --- */
+.action-group {
+    margin-top: 2rem;
+}
+
+.btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 1.2rem;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(15, 82, 186, 0.2);
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+}
+
+.btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: all 0.5s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 82, 186, 0.3);
+}
+
+.btn-primary:hover::after {
+    left: 100%;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+    box-shadow: none;
+}
+
+.btn-outline:hover {
+    background: rgba(15, 118, 110, 0.05);
+    box-shadow: none;
+}
+
+.url-hint {
+    display: block;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    font-family: monospace;
+    opacity: 0.7;
+}
+
+/* --- Facilities Info Grid --- */
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+@media (min-width: 600px) {
+    .info-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.info-box {
+    background: white;
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.info-box.highlight {
+    background: #F0FDF4;
+    border-color: #BBF7D0;
+}
+
+.info-box i {
+    font-size: 1.8rem;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+
+.info-box h3 {
+    font-size: 1.1rem;
+}
+
+.info-box p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* --- Inline Signature Form --- */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.form-group input, .form-group textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius-md);
+    font-family: 'Pretendard', sans-serif;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.form-group input:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+}
+
+.signature-pad {
+    border: 2px dashed rgba(16, 185, 129, 0.4);
+    border-radius: 12px;
+    background: #ffffff;
+    cursor: crosshair;
+    touch-action: none;
+    width: 100%;
+    height: 200px;
+}
+
+.btn-clear {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-clear:hover {
+    color: #E11D48;
+}
+
+/* --- Footer --- */
+.footer {
+    text-align: center;
+    margin-top: 4rem;
+    padding: 2rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.contact-pill-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.contact-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    box-shadow: var(--shadow-glass);
+    color: var(--primary-dark);
+}
+
+/* Document Selector (Buttons instead of Dropdown) */
+.doc-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.doc-tab {
+    background: #f1f5f9;
+    border: 2px solid #e2e8f0;
+    padding: 1rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.doc-tab i {
+    font-size: 1.5rem;
+}
+
+.doc-tab.active {
+    background: #10B981;
+    border-color: #059669;
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.doc-tab:hover:not(.active) {
+    border-color: #cbd5e1;
+    background: #e2e8f0;
+}
+
+.doc-tab.viewed:not(.active) {
+    background: #ecfdf5;
+    border-color: #10B981;
+    color: #047857;
+}
+
+/* Mode Selector */
+.mode-selector {
+    display: flex;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+}
+
+.mode-tab {
+    flex: 1;
+    padding: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    color: #64748b;
+}
+
+.mode-tab.active {
+    background: white;
+    color: #0d9488;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Checklist Offboarding */
+.offboarding-notice {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.offboarding-notice h5 {
+    color: #9a3412;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.notice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #7c2d12;
+    margin-bottom: 0.4rem;
+}
+
+.notice-item input {
+    margin-top: 0.1rem;
+}
+
+/* --- Mobile Responsive Media Queries (Mobile-First Polish) --- */
+@media (max-width: 768px) {
+    body {
+        padding-bottom: 2rem;
+    }
+    
+    .header {
+        padding: 2rem 1rem 1.5rem;
+    }
+    
+    .header h1 {
+        font-size: 1.6rem;
+    }
+    
+    .header p {
+        font-size: 0.95rem;
+    }
+    
+    .hospital-logo-wrap {
+        width: 55px;
+        height: 55px;
+        font-size: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .timeline {
+        padding: 0 1rem;
+    }
+    
+    .timeline::before {
+        display: none; /* 모바일 타임라인 선 차단 */
+    }
+    
+    .step-card {
+        padding: 1.25rem 1rem; /* 내부 패딩을 좁혀 모바일 여백 극대화 */
+        margin-bottom: 1.5rem;
+        border-radius: 16px;
+    }
+    
+    .step-header {
+        gap: 0.8rem;
+        margin-bottom: 1.25rem;
+    }
+    
+    .step-badge {
+        width: 2.2rem;
+        height: 2.2rem;
+        font-size: 1rem;
+        border-radius: 8px;
+    }
+    
+    .step-title-wrapper h2 {
+        font-size: 1.15rem;
+        font-weight: 800;
+    }
+    
+    .step-desc {
+        font-size: 0.85rem;
+    }
+    
+    .check-list {
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .check-list li {
+        font-size: 0.85rem;
+        padding-left: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .check-list li i {
+        font-size: 1.1rem;
+    }
+    
+    .role-group {
+        padding: 0.8rem 1rem;
+    }
+    
+    .role-group h4 {
+        font-size: 0.95rem;
+    }
+    
+    .role-group p {
+        font-size: 0.8rem;
+    }
+    
+    .btn-primary {
+        padding: 1rem;
+        font-size: 0.95rem;
+        border-radius: 10px;
+    }
+    
+    .doc-selector {
+        gap: 0.5rem;
+    }
+    
+    .doc-tab {
+        padding: 0.8rem 0.25rem;
+        font-size: 0.8rem;
+        border-radius: 10px;
+    }
+    
+    .doc-tab i {
+        font-size: 1.2rem;
+    }
+    
+    .info-box {
+        padding: 1rem;
+    }
+    
+    .signature-pad {
+        height: 160px; /* 모바일에서 손가락 드로잉 영역 비율 조정 */
+    }
+    
+    .offboarding-notice {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .offboarding-notice h5 {
+        font-size: 0.85rem;
+    }
+    
+    .notice-item {
+        font-size: 0.8rem;
+    }
+    
+    .contact-pill-wrap {
+        gap: 0.5rem;
+    }
+    
+    .contact-pill {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+    }
+}

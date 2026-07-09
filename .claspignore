@@ -1,0 +1,6 @@
+# 1. 모든 파일 제외
+**/*
+
+# 2. 구글 앱스 스크립트에 업로드할 파일만 예외 지정
+!backend_script.js
+!appsscript.json
