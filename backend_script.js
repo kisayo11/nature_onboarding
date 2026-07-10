@@ -321,6 +321,9 @@ function generateDocAndConvertToPdf(templateId, docLabel, name, dept, job, birth
   const docDate = (timestamp instanceof Date) ? timestamp : (timestamp ? new Date(timestamp) : new Date());
   const dateStr = Utilities.formatDate(docDate, Session.getScriptTimeZone(), "yyyy. MM. dd.");
 
+  // 입사일 자동 조회
+  const joinDateStr = getJoinDate(name, phone, birth);
+
   if (!signatureUrl) {
     throw new Error("서명 이미지 주소가 없습니다.");
   }
@@ -378,6 +381,7 @@ function generateDocAndConvertToPdf(templateId, docLabel, name, dept, job, birth
   body.replaceText("{{사직사유}}", resignReason || "");
 
   body.replaceText("{{날짜}}", dateStr);
+  body.replaceText("{{입사일}}", joinDateStr);
 
   // 4. 서명 이미지 삽입
   const signatureLocation = body.findText("{{서명}}");
@@ -495,4 +499,109 @@ function byteToHex(sig) {
     hex += byteHex;
   }
   return hex;
+}
+
+// --- 재직자현황 시트에서 입사일 조회 엔진 ---
+function getJoinDate(name, phone, birth) {
+  let targetPhone = phone;
+  
+  // 만약 phone이 없고 birth가 있다면 입사자(Onboarding) 시트에서 연락처 검색 시도 (퇴사자용)
+  if (!targetPhone && birth) {
+    targetPhone = findPhoneByNameAndBirth(name, birth);
+  }
+  
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName("재직자현황");
+    if (!sheet) {
+      console.warn("'재직자현황' 시트를 찾을 수 없습니다.");
+      return "";
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const cleanPhone = function(p) {
+      return String(p).replace(/[^0-9]/g, "");
+    };
+    
+    const targetNameClean = String(name).trim();
+    const targetPhoneClean = cleanPhone(targetPhone);
+    
+    // 1차 검색: 이름과 휴대폰 둘 다 매칭하는 경우
+    if (targetPhoneClean) {
+      for (let i = 2; i < data.length; i++) {
+        const rowName = String(data[i][5]).trim();
+        const rowPhone = cleanPhone(data[i][8]);
+        
+        if (rowName === targetNameClean && rowPhone === targetPhoneClean) {
+          return formatJoinDateValue(data[i][6]);
+        }
+      }
+    }
+    
+    // 2차 검색 (Fallback): 이름만 매칭하는 경우 (휴대폰이 없거나 매칭 실패 시, 이름이 고유할 때만 반환)
+    let matchedRows = [];
+    for (let i = 2; i < data.length; i++) {
+      const rowName = String(data[i][5]).trim();
+      if (rowName === targetNameClean) {
+        matchedRows.push(data[i]);
+      }
+    }
+    
+    if (matchedRows.length === 1) {
+      return formatJoinDateValue(matchedRows[0][6]);
+    } else if (matchedRows.length > 1) {
+      console.warn("이름이 중복되는 재직자가 존재하여 입사일을 특정할 수 없습니다: " + targetNameClean);
+    }
+    
+  } catch (err) {
+    console.error("입사일 조회 에러: " + err.toString());
+  }
+  return "";
+}
+
+// 입사자(Onboarding) 시트에서 이름+생년월일 매칭으로 연락처 찾기 헬퍼
+function findPhoneByNameAndBirth(name, birth) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName("입사자(Onboarding)");
+    if (!sheet) return "";
+    
+    const data = sheet.getDataRange().getValues();
+    const targetName = String(name).trim();
+    const targetBirth = String(birth).trim(); // yyyy-mm-dd
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowName = String(data[i][1]).trim();
+      const rowBirthVal = data[i][4];
+      
+      let rowBirth = "";
+      if (rowBirthVal instanceof Date) {
+        rowBirth = Utilities.formatDate(rowBirthVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      } else {
+        rowBirth = String(rowBirthVal).trim();
+      }
+      
+      if (rowName === targetName && rowBirth === targetBirth) {
+        return String(data[i][5]).trim(); // 연락처 (F열)
+      }
+    }
+  } catch (e) {
+    console.error("입사자 시트에서 연락처 검색 실패: " + e.toString());
+  }
+  return "";
+}
+
+// 입사일 날짜 형태 포맷 변환용 헬퍼 함수
+function formatJoinDateValue(val) {
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy. MM. dd.");
+  }
+  if (val) {
+    const dateObj = new Date(val);
+    if (!isNaN(dateObj.getTime())) {
+      return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy. MM. dd.");
+    }
+    return String(val);
+  }
+  return "";
 }
