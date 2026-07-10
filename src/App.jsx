@@ -6,7 +6,7 @@ import MobileSignView from './components/MobileSignView'
 const App = () => {
   const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
   const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service'
-  const googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbxExxPP4e3gQEtlZCCA7b8LNzvx7944YEXt9PvTVD3XrFdoLk21TUACciXGG4qXa_yz/exec'
+  const googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycb02oRVPYUNMVW2WW7zJEOtDsoO20PiBX7EMCehK2eyp1NeEBUYabwdKpGe8rt0SCdM/exec'
 
   useEffect(() => {
     // 해시 및 쿼리 기반 모드 탐지
