@@ -11,7 +11,8 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
     resignDate: params.get('resignDate') || '', // 사직일 (yyyy-mm-dd)
     resignReason: params.get('resignReason') || '', // 퇴사 사유 타이핑
     checkCard: false,
-    checkUniform: false
+    checkUniform: false,
+    checkIrp: false
   })
   const [signature, setSignature] = useState('')
   const [sigMethod, setSigMethod] = useState('pc') // 'pc', 'mobile', 'sms'
@@ -117,12 +118,12 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   }
 
   const handleConfirm = () => {
-    const { empJob, empDept, empName, empBirth, resignDate, resignReason, checkCard, checkUniform } = formData
+    const { empJob, empDept, empName, empBirth, resignDate, resignReason, checkCard, checkUniform, checkIrp } = formData
     if (!empJob || !empDept || !empName || !empBirth || !resignDate || !resignReason) {
       alert('정보를 모두 입력해 주세요!')
       return
     }
-    if (!checkCard || !checkUniform) {
+    if (!checkCard || !checkUniform || !checkIrp) {
       alert('퇴사 전 확인 및 동의 사항에 체크해 주세요.')
       return
     }
@@ -146,6 +147,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
       resignReason: formData.resignReason,
       checkCard: formData.checkCard ? '완료' : '미완료',
       checkUniform: formData.checkUniform ? '동의' : '미동의',
+      checkIrp: formData.checkIrp ? '완료' : '미완료',
       docType: '사직원+보안서약',
       signature: signature
     }
@@ -254,17 +256,17 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
 
           <form onSubmit={handleSubmit} style={{ marginTop: '1.5rem' }}>
             <div className="form-group">
-              <label style={{ color: '#B91C1C', marginBottom: '0.5rem', display: 'block' }}>
-                [퇴직 서류를 선택하여 내용을 확인해주세요]
+              <label style={{ color: '#B91C1C', marginBottom: '0.5rem', display: 'block', fontWeight: '700' }}>
+                [퇴직 서류 선택 - 아래 두 탭을 모두 클릭해 확인해야 서명란이 열립니다 ⚠️]
               </label>
               <div className="doc-selector">
-                <div className={`doc-tab ${activeDoc === 'resignation' ? 'active' : ''} ${viewedDocs.resignation ? 'viewed' : ''}`} onClick={() => selectDocTab('resignation')}>
+                <div className={`doc-tab ${activeDoc === 'resignation' ? 'active' : (viewedDocs.resignation ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('resignation')}>
                   <i className="ph-bold ph-file-text"></i>
-                  <span>사직원</span>
+                  <span>사직원 {!viewedDocs.resignation && ' (미확인 ⚠️)'}</span>
                 </div>
-                <div className={`doc-tab ${activeDoc === 'securityOff' ? 'active' : ''} ${viewedDocs.securityOff ? 'viewed' : ''}`} onClick={() => selectDocTab('securityOff')}>
+                <div className={`doc-tab ${activeDoc === 'securityOff' ? 'active' : (viewedDocs.securityOff ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('securityOff')}>
                   <i className="ph-bold ph-shield-warning"></i>
-                  <span>보안서약서</span>
+                  <span>보안서약서 {!viewedDocs.securityOff && ' (미확인 ⚠️)'}</span>
                 </div>
               </div>
             </div>
@@ -338,6 +340,16 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
                   required
                 />
                 <span>6개월 이내 퇴사 시 잠복결핵 검사 및 유니폼 비용 차감에 동의함</span>
+              </label>
+              <label className="notice-item" style={{ color: '#7c2d12', cursor: 'pointer', marginTop: '0.5rem', display: 'flex' }}>
+                <input
+                  type="checkbox"
+                  id="checkIrp"
+                  checked={formData.checkIrp}
+                  onChange={handleInputChange}
+                  required
+                />
+                <span>퇴직연금 수령을 위한 개인 IRP 계좌 사본 제출(총무팀) 완료</span>
               </label>
             </div>
 

@@ -229,17 +229,17 @@ const OnboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
 
           <form onSubmit={handleSubmit} style={{ marginTop: '1.5rem' }}>
             <div className="form-group">
-              <label style={{ color: '#047857', marginBottom: '0.5rem', display: 'block' }}>
-                [입사 서류를 선택하여 내용을 확인해주세요]
+              <label style={{ color: '#047857', marginBottom: '0.5rem', display: 'block', fontWeight: '700' }}>
+                [입사 서류 선택 - 아래 두 탭을 모두 클릭해 확인해야 서명란이 열립니다 ⚠️]
               </label>
               <div className="doc-selector">
-                <div className={`doc-tab ${activeDoc === 'training' ? 'active' : ''} ${viewedDocs.training ? 'viewed' : ''}`} onClick={() => selectDocTab('training')}>
+                <div className={`doc-tab ${activeDoc === 'training' ? 'active' : (viewedDocs.training ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('training')}>
                   <i className="ph-bold ph-shield-check"></i>
-                  <span>안전보건교육</span>
+                  <span>안전보건교육 {!viewedDocs.training && ' (미확인 ⚠️)'}</span>
                 </div>
-                <div className={`doc-tab ${activeDoc === 'privacy' ? 'active' : ''} ${viewedDocs.privacy ? 'viewed' : ''}`} onClick={() => selectDocTab('privacy')}>
+                <div className={`doc-tab ${activeDoc === 'privacy' ? 'active' : (viewedDocs.privacy ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('privacy')}>
                   <i className="ph-bold ph-lock-key"></i>
-                  <span>개인정보서약서</span>
+                  <span>개인정보서약서 {!viewedDocs.privacy && ' (미확인 ⚠️)'}</span>
                 </div>
               </div>
             </div>

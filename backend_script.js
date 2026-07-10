@@ -38,7 +38,7 @@ function initializeAllSheets() {
   // 2. 퇴사자 시트 설정
   let offSheet = ss.getSheetByName("퇴사자(Offboarding)");
   if (!offSheet) offSheet = ss.insertSheet("퇴사자(Offboarding)");
-  const offHeaders = ["타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"];
+  const offHeaders = ["타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "개인 IRP 계좌 사본 제출여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"];
   offSheet.getRange(1, 1, 1, offHeaders.length).setValues([offHeaders]);
   offSheet.setFrozenRows(1);
 
@@ -266,24 +266,25 @@ function doPost(e) {
         sheet.getRange(matchedRowIndex, 9).setValue(docUrl1);
         sheet.getRange(matchedRowIndex, 10).setValue(docUrl2);
       } else {
-        // [퇴사자] A: 타임스탬프, B: 이름, C: 부서, D: 직종, E: 사직일, F: 사직사유, G: 출입카드, H: 검사및유니폼, I: 서류내역, J: 서명이미지, K: 결과_사직서, L: 결과_보안서약
+        // [퇴사자] A: 타임스탬프, B: 이름, C: 부서, D: 직종, E: 사직일, F: 사직사유, G: 출입카드, H: 검사및유니폼, I: 개인 IRP 계좌 사본 제출여부, J: 서류내역, K: 서명이미지, L: 결과_사직서, M: 결과_보안서약
         sheet.getRange(matchedRowIndex, 1).setValue(timestamp);
         sheet.getRange(matchedRowIndex, 3).setValue(data.dept);
         sheet.getRange(matchedRowIndex, 4).setValue(data.job);
         sheet.getRange(matchedRowIndex, 6).setValue(data.resignReason);
         sheet.getRange(matchedRowIndex, 7).setValue(data.checkCard);
         sheet.getRange(matchedRowIndex, 8).setValue(data.checkUniform);
-        sheet.getRange(matchedRowIndex, 9).setValue(data.docType);
-        sheet.getRange(matchedRowIndex, 10).setValue(sigUrl);
-        sheet.getRange(matchedRowIndex, 11).setValue(docUrl1);
-        sheet.getRange(matchedRowIndex, 12).setValue(docUrl2);
+        sheet.getRange(matchedRowIndex, 9).setValue(data.checkIrp);
+        sheet.getRange(matchedRowIndex, 10).setValue(data.docType);
+        sheet.getRange(matchedRowIndex, 11).setValue(sigUrl);
+        sheet.getRange(matchedRowIndex, 12).setValue(docUrl1);
+        sheet.getRange(matchedRowIndex, 13).setValue(docUrl2);
       }
     } else {
       // 매칭 실패 시 데이터 추가 (Upsert - Insert)
       if (!isOffboarding) {
         sheet.appendRow([timestamp, data.name, data.dept, data.job, data.birth, data.phone, data.docType, sigUrl, docUrl1, docUrl2]);
       } else {
-        sheet.appendRow([timestamp, data.name, data.dept, data.job, data.resignDate, data.resignReason, data.checkCard, data.checkUniform, data.docType, sigUrl, docUrl1, docUrl2]);
+        sheet.appendRow([timestamp, data.name, data.dept, data.job, data.resignDate, data.resignReason, data.checkCard, data.checkUniform, data.checkIrp, data.docType, sigUrl, docUrl1, docUrl2]);
       }
     }
 
