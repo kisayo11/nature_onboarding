@@ -78,8 +78,8 @@ function loadConfig() {
       config[key] = val;
     }
   }
-  console.log("Loaded Config Keys: " + Object.keys(config).join(", "));
-  console.log("SLACK_WEBHOOK_URL: [" + config['SLACK_WEBHOOK_URL'] + "]");
+  Logger.log("Loaded Config Keys: " + Object.keys(config).join(", "));
+  Logger.log("SLACK_WEBHOOK_URL: [" + config['SLACK_WEBHOOK_URL'] + "]");
   return config;
 }
 
@@ -488,7 +488,7 @@ function sendSlackNotification(webhookUrl, message) {
     };
     UrlFetchApp.fetch(webhookUrl, options);
   } catch (err) {
-    console.error("Slack Notification Send Error: " + err.toString());
+    Logger.log("Slack Notification Send Error: " + err.toString());
   }
 }
 
@@ -518,7 +518,7 @@ function getJoinDate(name, phone, birth) {
     const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName("재직자현황");
     if (!sheet) {
-      console.warn("'재직자현황' 시트를 찾을 수 없습니다.");
+      Logger.log("'재직자현황' 시트를 찾을 수 없습니다.");
       return "";
     }
     
@@ -554,11 +554,11 @@ function getJoinDate(name, phone, birth) {
     if (matchedRows.length === 1) {
       return formatJoinDateValue(matchedRows[0][6]);
     } else if (matchedRows.length > 1) {
-      console.warn("이름이 중복되는 재직자가 존재하여 입사일을 특정할 수 없습니다: " + targetNameClean);
+      Logger.log("이름이 중복되는 재직자가 존재하여 입사일을 특정할 수 없습니다: " + targetNameClean);
     }
     
   } catch (err) {
-    console.error("입사일 조회 에러: " + err.toString());
+    Logger.log("입사일 조회 에러: " + err.toString());
   }
   return "";
 }
@@ -590,7 +590,7 @@ function findPhoneByNameAndBirth(name, birth) {
       }
     }
   } catch (e) {
-    console.error("입사자 시트에서 연락처 검색 실패: " + e.toString());
+    Logger.log("입사자 시트에서 연락처 검색 실패: " + e.toString());
   }
   return "";
 }
