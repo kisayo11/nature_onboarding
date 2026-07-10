@@ -72,8 +72,8 @@ function loadConfig() {
   
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    const key = data[i][0];
-    const val = data[i][1];
+    const key = String(data[i][0]).trim();
+    const val = String(data[i][1]).trim();
     if (key) {
       config[key] = val;
     }
