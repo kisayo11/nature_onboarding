@@ -35,7 +35,7 @@ const OnboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
           const response = await fetch(`${googleAppsScriptUrl}?action=getSignature&name=${encodeURIComponent(formData.empName)}&birth=${encodeURIComponent(formData.empBirth)}`)
           const data = await response.json()
           if (data.result === 'success' && data.exists && data.signatureData) {
-            setSignature(data.driveUrl || data.signatureData)
+            setSignature(data.signatureData)
             clearInterval(interval)
             setIsPolling(false)
           }
