@@ -78,6 +78,8 @@ function loadConfig() {
       config[key] = val;
     }
   }
+  console.log("Loaded Config Keys: " + Object.keys(config).join(", "));
+  console.log("SLACK_WEBHOOK_URL: [" + config['SLACK_WEBHOOK_URL'] + "]");
   return config;
 }
 
@@ -289,10 +291,11 @@ function doPost(e) {
     }
 
     // 5. 알림 연동 (솔라피 문자 & 슬랙 알림)
-    const smsTemplate = isOffboarding ? config['OFF_SMS_TEMPLATE'] : config['ON_SMS_TEMPLATE'];
+    const rawTemplate = isOffboarding ? config['OFF_SMS_TEMPLATE'] : config['ON_SMS_TEMPLATE'];
+    const smsTemplate = rawTemplate || "";
     const message = smsTemplate
-      .replace("{이름}", data.name)
-      .replace("{링크}", docUrl1); // 첫 번째 대표 문서 링크 치환
+      ? smsTemplate.replace("{이름}", data.name).replace("{링크}", docUrl1)
+      : "";
       
     // 솔라피 문자 전송
     if (config['SOLAPI_API_KEY'] && config['SOLAPI_API_SECRET'] && config['SENDER_NUMBER'] && data.phone) {
