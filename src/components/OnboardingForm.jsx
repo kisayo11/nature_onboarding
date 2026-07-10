@@ -126,12 +126,26 @@ const OnboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
     }
 
     try {
+      console.log('📤 [서류 제출] 발송 페이로드:', payload)
       const response = await fetch(googleAppsScriptUrl, {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       })
-      const result = await response.json()
+      
+      const responseText = await response.text()
+      console.log('📥 [서류 제출] 응답 수신 (텍스트):', responseText)
+      
+      let result;
+      try {
+        result = JSON.parse(responseText)
+      } catch (e) {
+        console.error('❌ 응답 JSON 파싱 실패! 서버가 HTML 에러 페이지를 반환했을 수 있습니다:', e)
+        console.error('서버 응답 원문:', responseText)
+        alert('❌ 서버에서 에러가 발생했습니다. 브라우저 개발자 도구(F12) 콘솔 창에서 에러 로그를 확인해 주세요.')
+        return
+      }
+
       if (result.result === 'success') {
         setResultUrls({
           docUrl1: result.docUrl1,
@@ -139,10 +153,11 @@ const OnboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
         })
       } else {
         alert('❌ 오류: ' + result.message)
+        console.error('❌ 서버 오류 응답:', result.message)
       }
     } catch (error) {
-      console.error(error)
-      alert('❌ 서버 통신 오류가 발생했습니다.')
+      console.error('❌ 네트워크/통신 오류 발생:', error)
+      alert('❌ 서버 통신 오류가 발생했습니다. 개발자 도구(F12) 콘솔 창을 확인하세요.')
     } finally {
       setIsSubmitting(false)
     }
