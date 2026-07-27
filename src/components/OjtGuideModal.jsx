@@ -34,8 +34,6 @@ export const OjtGuideContent = ({ googleAppsScriptUrl }) => {
       })
       .finally(() => setLoading(false))
   }, [googleAppsScriptUrl])
-      .finally(() => setLoading(false))
-  }, [googleAppsScriptUrl])
 
   const filteredContacts = contacts.filter(
     (c) =>
