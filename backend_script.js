@@ -71,7 +71,11 @@ function loadConfig() {
   if (!sheet) return config;
   
   const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
+  // 1행이 헤더인지 바로 데이터인지 판별 (헤더가 없으면 0행부터 읽기)
+  const firstCell = String(data[0][0]).trim();
+  const startRow = (firstCell === "설정 항목" || firstCell === "설정항목" || firstCell === "키" || firstCell === "Key") ? 1 : 0;
+  
+  for (let i = startRow; i < data.length; i++) {
     const key = String(data[i][0]).trim();
     const val = String(data[i][1]).trim();
     if (key) {
@@ -299,23 +303,41 @@ function doPost(e) {
       
     // 솔라피 문자 전송
     if (config['SOLAPI_API_KEY'] && config['SOLAPI_API_SECRET'] && config['SENDER_NUMBER'] && data.phone) {
+      Logger.log("솔라피 문자 전송 시도: " + data.phone);
       sendSolapiSms(config['SOLAPI_API_KEY'], config['SOLAPI_API_SECRET'], config['SENDER_NUMBER'], data.phone, message);
+    } else {
+      Logger.log("솔라피 전송 스킵 (설정 누락 또는 수신번호 없음)");
     }
     
     // 슬랙 웹훅 전송
+    let slackStatus = "skipped";
+    let slackErrorMsg = "";
     if (config['SLACK_WEBHOOK_URL']) {
+      Logger.log("슬랙 알림 전송 시도");
       const typeLabel = isOffboarding ? "퇴사자 서류 제출" : "신규 입사자 서류 제출";
       const slackMessage = `📢 *[${typeLabel}] ${data.name} (${data.dept} / ${data.job})*\n• 날짜: ${Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n• 서류내역: ${data.docType}\n• 첫번째 서류: ${docUrl1}\n• 두번째 서류: ${docUrl2}`;
-      sendSlackNotification(config['SLACK_WEBHOOK_URL'], slackMessage);
+      
+      try {
+        sendSlackNotification(config['SLACK_WEBHOOK_URL'], slackMessage);
+        slackStatus = "success";
+      } catch (slackError) {
+        slackStatus = "fail";
+        slackErrorMsg = slackError.toString();
+      }
+    } else {
+      Logger.log("슬랙 전송 스킵 (SLACK_WEBHOOK_URL 설정 누락)");
     }
 
     return ContentService.createTextOutput(JSON.stringify({ 
       result: "success", 
       docUrl1: docUrl1,
-      docUrl2: docUrl2
+      docUrl2: docUrl2,
+      slackStatus: slackStatus,
+      slackError: slackErrorMsg
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
+    Logger.log("doPost 실행 중 에러 발생: " + error.toString());
     return ContentService.createTextOutput(JSON.stringify({ result: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -486,9 +508,14 @@ function sendSlackNotification(webhookUrl, message) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
-    UrlFetchApp.fetch(webhookUrl, options);
+    const res = UrlFetchApp.fetch(webhookUrl, options);
+    const code = res.getResponseCode();
+    if (code !== 200) {
+      throw new Error("Slack Error Code " + code + ": " + res.getContentText());
+    }
   } catch (err) {
     Logger.log("Slack Notification Send Error: " + err.toString());
+    throw err;
   }
 }
 
