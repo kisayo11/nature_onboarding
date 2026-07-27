@@ -1,122 +1,16 @@
 import React, { useState, useEffect } from 'react'
 
-const DEFAULT_CONTACTS = [
-  { role: '원무데스크 1', name: '', ext: '900', dept: '원무데스크 1' },
-  { role: '원무데스크 2', name: '', ext: '990', dept: '원무데스크 2' },
-  { role: '사회복지사', name: '', ext: '910', dept: '사회복지사' },
-  { role: '원무과장', name: '김상용', ext: '901', dept: '원무과장' },
-  { role: '원무대리', name: '강혜민', ext: '902', dept: '원무대리' },
-  { role: '총무팀장', name: '김미혜', ext: '905', dept: '총무팀장' },
-  { role: '방사선실장', name: '김동휘', ext: '906', dept: '방사선실장' },
-  { role: 'OPS', name: '장수진', ext: '908', dept: 'OPS' },
-  { role: '상담실장', name: '허지현', ext: '210', dept: '상담실장' },
-  { role: '상담간호사', name: '김은실', ext: '211', dept: '상담간호사' },
-  { role: '진료실1', name: '김선정', ext: '911', dept: '진료실1' },
-  { role: '진료실2', name: '주용식', ext: '912', dept: '진료실2' },
-  { role: '진료실3', name: '이상미', ext: '913', dept: '진료실3' },
-  { role: '진료실4', name: '고은주', ext: '914', dept: '진료실4' },
-  { role: '진료실5', name: '김홍금', ext: '915', dept: '진료실5' },
-  { role: '주차관리실', name: '', ext: '999', dept: '주차관리실' },
-  { role: '당직의사', name: '-', ext: '-', dept: '당직의사' },
-  { role: '행정당직', name: '-', ext: '-', dept: '행정당직' },
-  { role: '심사팀장', name: '김미진', ext: '917', dept: '심사팀장' },
-  { role: '간호부장', name: '정을주', ext: '918', dept: '간호부장' },
-  { role: '병원장', name: '이진희', ext: '919', dept: '병원장' },
-  { role: '약제과', name: '미남희', ext: '921', dept: '약제과' },
-  { role: '시설미화팀장', name: '정평오', ext: '923', dept: '시설미화팀장' },
-  { role: '영양팀장', name: '최윤정', ext: '925', dept: '영양팀장' },
-  { role: '재활치료센터장', name: '정진광', ext: '209', dept: '재활치료센터장' },
-  { role: '재활치료실', name: '', ext: '200', dept: '재활치료실' },
-  { role: '3층 간호사실', name: '', ext: '300', dept: '3층 간호사실' },
-  { role: '4층 간호사실', name: '', ext: '400', dept: '4층 간호사실' },
-  { role: '5층 간호사실', name: '', ext: '500', dept: '5층 간호사실' },
-  { role: '6층 간호사실', name: '', ext: '600', dept: '6층 간호사실' },
-  { role: '7층 간호사실', name: '', ext: '700', dept: '7층 간호사실' },
-  { role: '헤모필리아센터 (치치실)', name: '한문희', ext: '930', dept: '헤모필리아센터' },
-  { role: '헤모필리아센터 (치료실)', name: '정진광', ext: '932', dept: '헤모필리아센터' }
-]
-
-const DEFAULT_FLOORS = [
-  { floor: '옥상', title: '하늘정원', desc: '휴게공간, 태양열 판넬, 실외기' },
-  { floor: '7F ~ 8F', title: 'VIP & VVIP 병동', desc: '1인실' },
-  { floor: '4F ~ 6F', title: '일반병동', desc: '4인실, 6인실' },
-  { floor: '3F', title: 'ICU 중환자실', desc: 'ICU,헤모필리아병실' },
-  { floor: '2F', title: '재활치료센터', desc: '물리치료실, 작업치료실' },
-  { floor: '1F', title: '원무 & 로비', desc: '접수데스크, 원무과, 상담실, 카페 드래더, 프로그램실' },
-  { floor: 'B1F', title: '진료실', desc: '병원장실, 진료과, 심사팀, 영상의학실, 서버실, 소회의실' },
-  { floor: 'B2F', title: '구내식당', desc: '구내식당, 탈의실, 영양팀, 세탁실, 소독실, 린넨실, 헤모필리아센터, 샤워실' },
-  { floor: 'B3F ~ B4F', title: '시설관리', desc: '방재실, 산소실, 주차장 및 설비시설' }
-]
-
-const DEFAULT_TOOLS = [
-  {
-    name: 'KT bizmeka',
-    category: '전자결재 / 사내메신저 / 일정',
-    url: 'https://ezsso.bizmeka.com/sso/ssoLogin.do',
-    icon: 'ph-article',
-    badge: '필수 접속'
-  },
-  {
-    name: 'Google Drive',
-    category: '업무 문서 공유 & 서식 데이터',
-    url: 'https://drive.google.com',
-    icon: 'ph-google-drive-logo',
-    badge: '업무공유'
-  },
-  {
-    name: 'DOCTORS(EMR)',
-    category: '전자의무기록',
-    url: '',
-    icon: 'ph-first-aid',
-    badge: '원내 프로그램'
-  },
-  {
-    name: 'Gmail / Slack',
-    category: '팀 커뮤니케이션',
-    url: '',
-    icon: 'ph-slack-logo',
-    badge: '소통 채널'
-  }
-]
-
-const DEFAULT_WELFARE = [
-  {
-    title: '카페 드래더 (Cafe de Ladder)',
-    desc: '1층에 위치한 병원 전용 카페로, 임직원 대상 전 음료 20% 할인 적용 혜택이 제공됩니다.',
-    icon: 'ph-coffee',
-    color: 'blue'
-  },
-  {
-    title: '구내식당 중식 무료 제공',
-    desc: '지하 2층 구내식당에서 매일 맛있고 영양가 높은 영양식 중식이 무료로 제공됩니다.',
-    icon: 'ph-fork-knife',
-    color: 'green'
-  },
-  {
-    title: '생일 축하금 & 포상',
-    desc: '생일을 맞이한 임직원 축하금 지급 및 매월 이달의 친절사원 선정 및 포상 제도가 운영됩니다.',
-    icon: 'ph-cake',
-    color: 'amber'
-  },
-  {
-    title: '일월 송년회 및 이벤트',
-    desc: '모든 부서원이 함께 어우러지는 월말 및 연말 송년회 행사 및 다양한 소통 프로그램을 지원합니다.',
-    icon: 'ph-users-three',
-    color: 'purple'
-  }
-]
-
-// OJT 메인 콘텐츠 컴포넌트
+// OJT 메인 콘텐츠 컴포넌트 (구글 시트 100% 동적 연동)
 export const OjtGuideContent = ({ googleAppsScriptUrl }) => {
   const [activeTab, setActiveTab] = useState('contacts')
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
   const [isLiveSheet, setIsLiveSheet] = useState(false)
 
-  const [contacts, setContacts] = useState(DEFAULT_CONTACTS)
-  const [floors, setFloors] = useState(DEFAULT_FLOORS)
-  const [tools, setTools] = useState(DEFAULT_TOOLS)
-  const [welfare, setWelfare] = useState(DEFAULT_WELFARE)
+  const [contacts, setContacts] = useState([])
+  const [floors, setFloors] = useState([])
+  const [tools, setTools] = useState([])
+  const [welfare, setWelfare] = useState([])
 
   // 구글 시트 동적 데이터 fetching
   useEffect(() => {
@@ -128,16 +22,18 @@ export const OjtGuideContent = ({ googleAppsScriptUrl }) => {
       .then((data) => {
         if (data && data.result === 'success' && data.data) {
           const sheetData = data.data
-          if (sheetData.contacts && sheetData.contacts.length > 0) setContacts(sheetData.contacts)
-          if (sheetData.floors && sheetData.floors.length > 0) setFloors(sheetData.floors)
-          if (sheetData.tools && sheetData.tools.length > 0) setTools(sheetData.tools)
-          if (sheetData.welfare && sheetData.welfare.length > 0) setWelfare(sheetData.welfare)
+          setContacts(sheetData.contacts || [])
+          setFloors(sheetData.floors || [])
+          setTools(sheetData.tools || [])
+          setWelfare(sheetData.welfare || [])
           setIsLiveSheet(true)
         }
       })
       .catch((err) => {
-        console.warn('OJT 구글 시트 데이터 로딩 실패. 기본 데이터 적용:', err)
+        console.error('OJT 구글 시트 연동 오류:', err)
       })
+      .finally(() => setLoading(false))
+  }, [googleAppsScriptUrl])
       .finally(() => setLoading(false))
   }, [googleAppsScriptUrl])
 
