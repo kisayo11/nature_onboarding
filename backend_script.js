@@ -6,6 +6,7 @@
 
 // [설정값 - 스프레드시트 ID]
 const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPQSQBhuS5mHoFvR5obY";
+const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg"; // OJT 전용 공유 시트 ID
 
 // 템플릿 문서 ID
 const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";   // 신규안전교육 (입사)
@@ -60,95 +61,30 @@ function initializeAllSheets() {
   configSheet.getRange(2, 1, defaultConfigs.length, 3).setValues(defaultConfigs);
   configSheet.setFrozenRows(1);
 
-  // 4. OJT 시트 설정 (내선, 층별, 협업도구, 복리후생)
-  let contactsSheet = ss.getSheetByName("OJT_내선");
-  if (!contactsSheet) {
-    contactsSheet = ss.insertSheet("OJT_내선");
-    const contactsHeaders = ["부서", "이름", "내선번호", "담당업무"];
-    contactsSheet.getRange(1, 1, 1, contactsHeaders.length).setValues([contactsHeaders]);
-    const defaultContacts = [
-      ["원무과", "김상용 과장", "901", "원무과 관리"],
-      ["총무팀", "김미혜 팀장", "905", "인사 / 총무"],
-      ["원무과", "강혜민 대리", "902", "원무행정 / 접수"],
-      ["원무과", "최수빈 / 조정화", "900 / 990", "데스크 / 행정"],
-      ["행정부", "김본호 부장", "916", "행정부 총괄"],
-      ["심사팀", "김미진 팀장", "917", "건보심사"],
-      ["시설팀", "정평오 팀장", "923", "시설물 관리 / 수리"],
-      ["영양팀", "최윤정 팀장", "925", "영양팀 / 구내식당"],
-      ["상담실", "허지현 실장", "210", "입원 상담"],
-      ["영상의학실", "김동휘 실장", "906", "방사선 / X-Ray"],
-      ["원무행정", "권준혁 복지사", "910 / 990", "사회복지 / 프로그램"],
-      ["야간당직", "김진람 / 권욱주 / 정진영", "999", "야간 행정 당직"]
-    ];
-    contactsSheet.getRange(2, 1, defaultContacts.length, 4).setValues(defaultContacts);
-    contactsSheet.setFrozenRows(1);
-  }
-
-  let floorsSheet = ss.getSheetByName("OJT_층별");
-  if (!floorsSheet) {
-    floorsSheet = ss.insertSheet("OJT_층별");
-    const floorsHeaders = ["층", "주요시설", "세부설명"];
-    floorsSheet.getRange(1, 1, 1, floorsHeaders.length).setValues([floorsHeaders]);
-    const defaultFloors = [
-      ["옥상 (R)", "하늘정원", "휴게 공간, 태양열 판넬, 실외기"],
-      ["7F ~ 8F", "VIP & VVIP 병동", "1인실, 2인실, VIP 810호 병실"],
-      ["4F ~ 6F", "일반 병동 (4,5,6병동)", "4인실, 6인실"],
-      ["3F", "3병동 (ICU 중환자실)", "ICU, 1인실, 4인실, 6인실, 헤모병실"],
-      ["2F", "재활치료센터", "물리치료실, 작업치료실"],
-      ["1F", "원무 & 대기공간", "원무과, 데스크, 상담실, 카페 드래더(Cafe), 프로그램실, 정문/후문"],
-      ["B1F", "진료 & 행정센터", "병원장실, 진료실(1~5과), 행정부장실, 심사팀, 영상의학실, 소회의실, 서버실"],
-      ["B2F", "구내식당 & 복지시설", "구내식당(중식 제공), 탈의실(여), 영양팀, 세탁실, 소독실, 린넨실, 헤모필리아센터"],
-      ["B3F ~ B4F", "시설 & 주차장", "B3: 시설팀, 방재실, 산소실 | B4: 주차장, 설비시설 (※ 1.5F: 남자탈의실)"]
-    ];
-    floorsSheet.getRange(2, 1, defaultFloors.length, 3).setValues(defaultFloors);
-    floorsSheet.setFrozenRows(1);
-  }
-
-  let toolsSheet = ss.getSheetByName("OJT_협업도구");
-  if (!toolsSheet) {
-    toolsSheet = ss.insertSheet("OJT_협업도구");
-    const toolsHeaders = ["도구명", "카테고리", "URL", "배지", "아이콘"];
-    toolsSheet.getRange(1, 1, 1, toolsHeaders.length).setValues([toolsHeaders]);
-    const defaultTools = [
-      ["kt bizmeka ez (그룹웨어)", "전자결재 / 사내메신저 / 일정", "https://ezsso.bizmeka.com/sso/ssoLogin.do", "필수 접속", "ph-article"],
-      ["Google Drive", "업무 문서 공유 & 서식 데이터", "https://drive.google.com", "업무공유", "ph-google-drive-logo"],
-      ["DOCTORS (EMR / PACS)", "전자의무기록 및 의료영상 차트", "", "원내 프로그램", "ph-first-aid"],
-      ["Slack / Gmail", "팀 커뮤니케이션 & 사내 메일", "", "소통 채널", "ph-slack-logo"]
-    ];
-    toolsSheet.getRange(2, 1, defaultTools.length, 5).setValues(defaultTools);
-    toolsSheet.setFrozenRows(1);
-  }
-
-  let welfareSheet = ss.getSheetByName("OJT_복리후생");
-  if (!welfareSheet) {
-    welfareSheet = ss.insertSheet("OJT_복리후생");
-    const welfareHeaders = ["제목", "설명", "아이콘", "색상"];
-    welfareSheet.getRange(1, 1, 1, welfareHeaders.length).setValues([welfareHeaders]);
-    const defaultWelfare = [
-      ["카페 드래더 (Cafe de Ladder)", "1층에 위치한 병원 전용 카페로, 임직원 대상 전 음료 20% 할인 적용 혜택이 제공됩니다.", "ph-coffee", "blue"],
-      ["구내식당 중식 무료 제공", "지하 2층 구내식당에서 매일 맛있고 영양가 높은 영양식 중식이 무료로 제공됩니다.", "ph-fork-knife", "green"],
-      ["생일 축하금 & 포상", "생일을 맞이한 임직원 축하금 지급 및 매월 이달의 친절사원 선정 및 포상 제도가 운영됩니다.", "ph-cake", "amber"],
-      ["월말 송년회 및 이벤트", "모든 부서원이 함께 어우러지는 월말 및 연말 송년회 행사 및 다양한 소통 프로그램을 지원합니다.", "ph-users-three", "purple"]
-    ];
-    welfareSheet.getRange(2, 1, defaultWelfare.length, 4).setValues(defaultWelfare);
-    welfareSheet.setFrozenRows(1);
-  }
-
   if (SpreadsheetApp.getUi()) {
-    SpreadsheetApp.getUi().alert("모든 시트 및 OJT 설정 탭이 올바르게 생성/초기화 되었습니다!");
+    SpreadsheetApp.getUi().alert("기본 시트 및 설정 탭이 올바르게 생성/초기화 되었습니다!");
   }
 }
 
-// --- OJT 데이터 동적 로더 (단일 OJT 시트 탭 우선 + 개별 탭 Fallback) ---
+// --- OJT 데이터 동적 로더 (공유된 OJT전용 시트 100% 동적 파싱) ---
 function loadOjtDataFromSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  let ss;
+  try {
+    // 1. 지정된 OJT 전용 공유 시트 ID에서 시트 열기 시도
+    ss = SpreadsheetApp.openById(OJT_SPREADSHEET_ID);
+  } catch (err) {
+    // 2. 실패 시 현재 활성화된 스프레드시트에서 열기
+    ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
   
   const contacts = [];
   const floors = [];
   const tools = [];
   const welfare = [];
 
-  // 1. 단일 [OJT] 시트 탭이 존재하는 경우 우선 처리
+  if (!ss) return { contacts, floors, tools, welfare };
+
+  // 단일 [OJT] 시트 탭 파싱 (우선순위 1)
   const ojtSheet = ss.getSheetByName("OJT");
   if (ojtSheet) {
     const data = ojtSheet.getDataRange().getValues();
@@ -192,7 +128,7 @@ function loadOjtDataFromSheet() {
           dept: String(row[12] || '').trim(),
           name: String(row[13] || '').trim(),
           ext: String(row[14] || '').trim(),
-          role: String(row[12] || '').trim() // 부서/역할
+          role: String(row[12] || '').trim()
         });
       }
     }
@@ -200,7 +136,7 @@ function loadOjtDataFromSheet() {
     return { contacts, floors, tools, welfare };
   }
 
-  // 2. 분리된 OJT 시트 탭이 존재하는 경우 (Fallback)
+  // 개별 시트 탭 파싱 (Fallback)
   const contactsSheet = ss.getSheetByName("OJT_내선");
   if (contactsSheet) {
     const data = contactsSheet.getDataRange().getValues();
