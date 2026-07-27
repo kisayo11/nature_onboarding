@@ -17,6 +17,8 @@ const DEFAULT_CONTACTS = [
   { role: '진료실4', name: '고은주', ext: '914', dept: '진료실4' },
   { role: '진료실5', name: '김홍금', ext: '915', dept: '진료실5' },
   { role: '주차관리실', name: '', ext: '999', dept: '주차관리실' },
+  { role: '당직의사', name: '-', ext: '-', dept: '당직의사' },
+  { role: '행정당직', name: '-', ext: '-', dept: '행정당직' },
   { role: '심사팀장', name: '김미진', ext: '917', dept: '심사팀장' },
   { role: '간호부장', name: '정을주', ext: '918', dept: '간호부장' },
   { role: '병원장', name: '이진희', ext: '919', dept: '병원장' },
@@ -27,7 +29,7 @@ const DEFAULT_CONTACTS = [
   { role: '재활치료실', name: '', ext: '200', dept: '재활치료실' },
   { role: '3층 간호사실', name: '', ext: '300', dept: '3층 간호사실' },
   { role: '4층 간호사실', name: '', ext: '400', dept: '4층 간호사실' },
-  { role: '5층 간호사실', name: '', ext: '500', dept: '500', dept: '5층 간호사실' },
+  { role: '5층 간호사실', name: '', ext: '500', dept: '5층 간호사실' },
   { role: '6층 간호사실', name: '', ext: '600', dept: '6층 간호사실' },
   { role: '7층 간호사실', name: '', ext: '700', dept: '7층 간호사실' },
   { role: '헤모필리아센터 (치치실)', name: '한문희', ext: '930', dept: '헤모필리아센터' },
@@ -35,20 +37,20 @@ const DEFAULT_CONTACTS = [
 ]
 
 const DEFAULT_FLOORS = [
-  { floor: '옥상 (R)', title: '하늘정원', desc: '휴게 공간, 태양열 판넬, 실외기' },
-  { floor: '7F ~ 8F', title: 'VIP & VVIP 병동', desc: '1인실, 2인실, VIP 810호 병실' },
-  { floor: '4F ~ 6F', title: '일반 병동 (4,5,6병동)', desc: '4인실, 6인실' },
-  { floor: '3F', title: '3병동 (ICU 중환자실)', desc: 'ICU, 1인실, 4인실, 6인실, 헤모병실' },
+  { floor: '옥상', title: '하늘정원', desc: '휴게공간, 태양열 판넬, 실외기' },
+  { floor: '7F ~ 8F', title: 'VIP & VVIP 병동', desc: '1인실' },
+  { floor: '4F ~ 6F', title: '일반병동', desc: '4인실, 6인실' },
+  { floor: '3F', title: 'ICU 중환자실', desc: 'ICU,헤모필리아병실' },
   { floor: '2F', title: '재활치료센터', desc: '물리치료실, 작업치료실' },
-  { floor: '1F', title: '원무 & 대기공간', desc: '원무과, 데스크, 상담실, 카페 드래더(Cafe), 프로그램실, 정문/후문' },
-  { floor: 'B1F', title: '진료 & 행정센터', desc: '병원장실, 진료실(1~5과), 행정부장실, 심사팀, 영상의학실, 소회의실, 서버실' },
-  { floor: 'B2F', title: '구내식당 & 복지시설', desc: '구내식당(중식 제공), 탈의실(여), 영양팀, 세탁실, 소독실, 린넨실, 헤모필리아센터' },
-  { floor: 'B3F ~ B4F', title: '시설 & 주차장', desc: 'B3: 시설팀, 방재실, 산소실 | B4: 주차장, 설비시설 (※ 1.5F: 남자탈의실)' }
+  { floor: '1F', title: '원무 & 로비', desc: '접수데스크, 원무과, 상담실, 카페 드래더, 프로그램실' },
+  { floor: 'B1F', title: '진료실', desc: '병원장실, 진료과, 심사팀, 영상의학실, 서버실, 소회의실' },
+  { floor: 'B2F', title: '구내식당', desc: '구내식당, 탈의실, 영양팀, 세탁실, 소독실, 린넨실, 헤모필리아센터, 샤워실' },
+  { floor: 'B3F ~ B4F', title: '시설관리', desc: '방재실, 산소실, 주차장 및 설비시설' }
 ]
 
 const DEFAULT_TOOLS = [
   {
-    name: 'kt bizmeka ez (그룹웨어)',
+    name: 'KT bizmeka',
     category: '전자결재 / 사내메신저 / 일정',
     url: 'https://ezsso.bizmeka.com/sso/ssoLogin.do',
     icon: 'ph-article',
@@ -62,15 +64,15 @@ const DEFAULT_TOOLS = [
     badge: '업무공유'
   },
   {
-    name: 'DOCTORS (EMR / PACS)',
-    category: '전자의무기록 및 의료영상 차트',
+    name: 'DOCTORS(EMR)',
+    category: '전자의무기록',
     url: '',
     icon: 'ph-first-aid',
     badge: '원내 프로그램'
   },
   {
-    name: 'Slack / Gmail',
-    category: '팀 커뮤니케이션 & 사내 메일',
+    name: 'Gmail / Slack',
+    category: '팀 커뮤니케이션',
     url: '',
     icon: 'ph-slack-logo',
     badge: '소통 채널'
@@ -97,7 +99,7 @@ const DEFAULT_WELFARE = [
     color: 'amber'
   },
   {
-    title: '월말 송년회 및 이벤트',
+    title: '일월 송년회 및 이벤트',
     desc: '모든 부서원이 함께 어우러지는 월말 및 연말 송년회 행사 및 다양한 소통 프로그램을 지원합니다.',
     icon: 'ph-users-three',
     color: 'purple'
