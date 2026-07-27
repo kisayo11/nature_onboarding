@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react'
 import OnboardingForm from './components/OnboardingForm'
 import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
+import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
 
 const App = () => {
   const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
   const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service'
+  const [isOjtOpen, setIsOjtOpen] = useState(false)
   const googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbz02oRVPYUNMVW2WW7zJEOtDsoO20PiBX7EMCehK2eyp1NeEBUYabwdKpGe8rt0SCdM/exec'
 
   useEffect(() => {
@@ -87,6 +89,9 @@ const App = () => {
       <main className="timeline">
         {mode === 'onboarding' ? (
           <>
+            {/* Top Fixed OJT Section */}
+            <OjtGuideSection googleAppsScriptUrl={googleAppsScriptUrl} />
+
             {/* Step 1: 인사기록 */}
             <article className="step-card visible">
               <div className="step-header">
@@ -203,8 +208,8 @@ const App = () => {
               <div className="step-header">
                 <div className="step-badge">5</div>
                 <div className="step-title-wrapper">
-                  <h2>병원 생활 가이드</h2>
-                  <p className="step-desc">원내 와이파이 및 층별 주요 시설 안내</p>
+                  <h2>신규직원 OJT & 병원생활 가이드</h2>
+                  <p className="step-desc">부서별 내선번호, 층별 주요 시설, 그룹웨어 접속 및 복지 혜택</p>
                 </div>
               </div>
               <div className="step-body">
@@ -215,13 +220,18 @@ const App = () => {
                     <p><strong>SSID:</strong> NatureHospital</p>
                   </div>
                   <div className="info-box">
-                    <i className="ph-bold ph-map-trifold"></i>
-                    <h3>층별 주요 시설</h3>
+                    <i className="ph-bold ph-book-open-text"></i>
+                    <h3>신규직원 OJT 퀵 가이드</h3>
                     <p>
-                      구내식당: <strong>지하 2층</strong><br />
-                      여자탈의실: <strong>지하 2층 안쪽</strong><br />
-                      남자탈의실: <strong>1.5층</strong>
+                      내선번호 검색, 층별 시설, bizmeka 그룹웨어, 카페 20% 할인 등 꿀팁 모음
                     </p>
+                    <button
+                      onClick={() => setIsOjtOpen(true)}
+                      className="btn-primary"
+                      style={{ marginTop: '0.8rem', width: '100%', fontSize: '0.88rem', padding: '0.6rem 1rem' }}
+                    >
+                      <i className="ph-bold ph-list-magnifying-glass"></i> OJT 퀵 가이드 열기
+                    </button>
                   </div>
                 </div>
               </div>
@@ -245,6 +255,9 @@ const App = () => {
         </div>
         <p style={{ marginTop: '2rem', fontSize: '0.8rem', opacity: 0.6 }}>&copy; 2026 네이처요양병원. All rights reserved.</p>
       </footer>
+
+      {/* OJT Modal */}
+      <OjtGuideModal isOpen={isOjtOpen} onClose={() => setIsOjtOpen(false)} googleAppsScriptUrl={googleAppsScriptUrl} />
     </div>
   )
 }

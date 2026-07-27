@@ -60,7 +60,208 @@ function initializeAllSheets() {
   configSheet.getRange(2, 1, defaultConfigs.length, 3).setValues(defaultConfigs);
   configSheet.setFrozenRows(1);
 
-  SpreadsheetApp.getUi().alert("모든 시트 및 설정 탭이 올바르게 생성/초기화 되었습니다!");
+  // 4. OJT 시트 설정 (내선, 층별, 협업도구, 복리후생)
+  let contactsSheet = ss.getSheetByName("OJT_내선");
+  if (!contactsSheet) {
+    contactsSheet = ss.insertSheet("OJT_내선");
+    const contactsHeaders = ["부서", "이름", "내선번호", "담당업무"];
+    contactsSheet.getRange(1, 1, 1, contactsHeaders.length).setValues([contactsHeaders]);
+    const defaultContacts = [
+      ["원무과", "김상용 과장", "901", "원무과 관리"],
+      ["총무팀", "김미혜 팀장", "905", "인사 / 총무"],
+      ["원무과", "강혜민 대리", "902", "원무행정 / 접수"],
+      ["원무과", "최수빈 / 조정화", "900 / 990", "데스크 / 행정"],
+      ["행정부", "김본호 부장", "916", "행정부 총괄"],
+      ["심사팀", "김미진 팀장", "917", "건보심사"],
+      ["시설팀", "정평오 팀장", "923", "시설물 관리 / 수리"],
+      ["영양팀", "최윤정 팀장", "925", "영양팀 / 구내식당"],
+      ["상담실", "허지현 실장", "210", "입원 상담"],
+      ["영상의학실", "김동휘 실장", "906", "방사선 / X-Ray"],
+      ["원무행정", "권준혁 복지사", "910 / 990", "사회복지 / 프로그램"],
+      ["야간당직", "김진람 / 권욱주 / 정진영", "999", "야간 행정 당직"]
+    ];
+    contactsSheet.getRange(2, 1, defaultContacts.length, 4).setValues(defaultContacts);
+    contactsSheet.setFrozenRows(1);
+  }
+
+  let floorsSheet = ss.getSheetByName("OJT_층별");
+  if (!floorsSheet) {
+    floorsSheet = ss.insertSheet("OJT_층별");
+    const floorsHeaders = ["층", "주요시설", "세부설명"];
+    floorsSheet.getRange(1, 1, 1, floorsHeaders.length).setValues([floorsHeaders]);
+    const defaultFloors = [
+      ["옥상 (R)", "하늘정원", "휴게 공간, 태양열 판넬, 실외기"],
+      ["7F ~ 8F", "VIP & VVIP 병동", "1인실, 2인실, VIP 810호 병실"],
+      ["4F ~ 6F", "일반 병동 (4,5,6병동)", "4인실, 6인실"],
+      ["3F", "3병동 (ICU 중환자실)", "ICU, 1인실, 4인실, 6인실, 헤모병실"],
+      ["2F", "재활치료센터", "물리치료실, 작업치료실"],
+      ["1F", "원무 & 대기공간", "원무과, 데스크, 상담실, 카페 드래더(Cafe), 프로그램실, 정문/후문"],
+      ["B1F", "진료 & 행정센터", "병원장실, 진료실(1~5과), 행정부장실, 심사팀, 영상의학실, 소회의실, 서버실"],
+      ["B2F", "구내식당 & 복지시설", "구내식당(중식 제공), 탈의실(여), 영양팀, 세탁실, 소독실, 린넨실, 헤모필리아센터"],
+      ["B3F ~ B4F", "시설 & 주차장", "B3: 시설팀, 방재실, 산소실 | B4: 주차장, 설비시설 (※ 1.5F: 남자탈의실)"]
+    ];
+    floorsSheet.getRange(2, 1, defaultFloors.length, 3).setValues(defaultFloors);
+    floorsSheet.setFrozenRows(1);
+  }
+
+  let toolsSheet = ss.getSheetByName("OJT_협업도구");
+  if (!toolsSheet) {
+    toolsSheet = ss.insertSheet("OJT_협업도구");
+    const toolsHeaders = ["도구명", "카테고리", "URL", "배지", "아이콘"];
+    toolsSheet.getRange(1, 1, 1, toolsHeaders.length).setValues([toolsHeaders]);
+    const defaultTools = [
+      ["kt bizmeka ez (그룹웨어)", "전자결재 / 사내메신저 / 일정", "https://ezsso.bizmeka.com/sso/ssoLogin.do", "필수 접속", "ph-article"],
+      ["Google Drive", "업무 문서 공유 & 서식 데이터", "https://drive.google.com", "업무공유", "ph-google-drive-logo"],
+      ["DOCTORS (EMR / PACS)", "전자의무기록 및 의료영상 차트", "", "원내 프로그램", "ph-first-aid"],
+      ["Slack / Gmail", "팀 커뮤니케이션 & 사내 메일", "", "소통 채널", "ph-slack-logo"]
+    ];
+    toolsSheet.getRange(2, 1, defaultTools.length, 5).setValues(defaultTools);
+    toolsSheet.setFrozenRows(1);
+  }
+
+  let welfareSheet = ss.getSheetByName("OJT_복리후생");
+  if (!welfareSheet) {
+    welfareSheet = ss.insertSheet("OJT_복리후생");
+    const welfareHeaders = ["제목", "설명", "아이콘", "색상"];
+    welfareSheet.getRange(1, 1, 1, welfareHeaders.length).setValues([welfareHeaders]);
+    const defaultWelfare = [
+      ["카페 드래더 (Cafe de Ladder)", "1층에 위치한 병원 전용 카페로, 임직원 대상 전 음료 20% 할인 적용 혜택이 제공됩니다.", "ph-coffee", "blue"],
+      ["구내식당 중식 무료 제공", "지하 2층 구내식당에서 매일 맛있고 영양가 높은 영양식 중식이 무료로 제공됩니다.", "ph-fork-knife", "green"],
+      ["생일 축하금 & 포상", "생일을 맞이한 임직원 축하금 지급 및 매월 이달의 친절사원 선정 및 포상 제도가 운영됩니다.", "ph-cake", "amber"],
+      ["월말 송년회 및 이벤트", "모든 부서원이 함께 어우러지는 월말 및 연말 송년회 행사 및 다양한 소통 프로그램을 지원합니다.", "ph-users-three", "purple"]
+    ];
+    welfareSheet.getRange(2, 1, defaultWelfare.length, 4).setValues(defaultWelfare);
+    welfareSheet.setFrozenRows(1);
+  }
+
+  if (SpreadsheetApp.getUi()) {
+    SpreadsheetApp.getUi().alert("모든 시트 및 OJT 설정 탭이 올바르게 생성/초기화 되었습니다!");
+  }
+}
+
+// --- OJT 데이터 동적 로더 (단일 OJT 시트 탭 우선 + 개별 탭 Fallback) ---
+function loadOjtDataFromSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  
+  const contacts = [];
+  const floors = [];
+  const tools = [];
+  const welfare = [];
+
+  // 1. 단일 [OJT] 시트 탭이 존재하는 경우 우선 처리
+  const ojtSheet = ss.getSheetByName("OJT");
+  if (ojtSheet) {
+    const data = ojtSheet.getDataRange().getValues();
+    // 1행은 헤더이므로 2행(index 1)부터 파싱
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+
+      // A~C: 층별
+      if (row[0] || row[1]) {
+        floors.push({
+          floor: String(row[0] || '').trim(),
+          title: String(row[1] || '').trim(),
+          desc: String(row[2] || '').trim()
+        });
+      }
+
+      // D~H: 협업도구
+      if (row[3]) {
+        tools.push({
+          name: String(row[3] || '').trim(),
+          category: String(row[4] || '').trim(),
+          url: String(row[5] || '').trim(),
+          badge: String(row[6] || '').trim(),
+          icon: String(row[7] || 'ph-desktop').trim()
+        });
+      }
+
+      // I~L: 복리후생
+      if (row[8]) {
+        welfare.push({
+          title: String(row[8] || '').trim(),
+          desc: String(row[9] || '').trim(),
+          icon: String(row[10] || 'ph-gift').trim(),
+          color: String(row[11] || 'blue').trim()
+        });
+      }
+
+      // M~O: 내선
+      if (row[12] || row[14]) {
+        contacts.push({
+          dept: String(row[12] || '').trim(),
+          name: String(row[13] || '').trim(),
+          ext: String(row[14] || '').trim(),
+          role: String(row[12] || '').trim() // 부서/역할
+        });
+      }
+    }
+
+    return { contacts, floors, tools, welfare };
+  }
+
+  // 2. 분리된 OJT 시트 탭이 존재하는 경우 (Fallback)
+  const contactsSheet = ss.getSheetByName("OJT_내선");
+  if (contactsSheet) {
+    const data = contactsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] || data[i][1]) {
+        contacts.push({
+          dept: String(data[i][0] || ''),
+          name: String(data[i][1] || ''),
+          ext: String(data[i][2] || ''),
+          role: String(data[i][3] || '')
+        });
+      }
+    }
+  }
+
+  const floorsSheet = ss.getSheetByName("OJT_층별");
+  if (floorsSheet) {
+    const data = floorsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] || data[i][1]) {
+        floors.push({
+          floor: String(data[i][0] || ''),
+          title: String(data[i][1] || ''),
+          desc: String(data[i][2] || '')
+        });
+      }
+    }
+  }
+
+  const toolsSheet = ss.getSheetByName("OJT_협업도구");
+  if (toolsSheet) {
+    const data = toolsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        tools.push({
+          name: String(data[i][0] || ''),
+          category: String(data[i][1] || ''),
+          url: String(data[i][2] || ''),
+          badge: String(data[i][3] || ''),
+          icon: String(data[i][4] || 'ph-desktop')
+        });
+      }
+    }
+  }
+
+  const welfareSheet = ss.getSheetByName("OJT_복리후생");
+  if (welfareSheet) {
+    const data = welfareSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        welfare.push({
+          title: String(data[i][0] || ''),
+          desc: String(data[i][1] || ''),
+          icon: String(data[i][2] || 'ph-gift'),
+          color: String(data[i][3] || 'blue')
+        });
+      }
+    }
+  }
+
+  return { contacts, floors, tools, welfare };
 }
 
 // --- 설정값 로더 ---
@@ -93,6 +294,14 @@ function doGet(e) {
     const action = e.parameter.action;
     const name = e.parameter.name;
     const birth = e.parameter.birth; // yyyy-mm-dd
+    
+    if (action === "getOjtData") {
+      const ojtData = loadOjtDataFromSheet();
+      return ContentService.createTextOutput(JSON.stringify({
+        result: "success",
+        data: ojtData
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
     
     if (action === "getSignature" && name && birth) {
       const folder = DriveApp.getFolderById(FOLDER_ID);
