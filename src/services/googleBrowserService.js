@@ -175,26 +175,38 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
 
   const pdfBlob = await pdfExportRes.blob();
 
-  // PDF 업로드
-  const metadata = {
-    name: `${fileName}.pdf`,
-    parents: [destFolderId],
-    mimeType: 'application/pdf'
-  };
-
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  form.append('file', pdfBlob);
-
-  const pdfRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink', {
+  // PDF 업로드 (1단계: 메타데이터 생성 -> 2단계: 바이너리 내용 패치)
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: `${fileName}.pdf`,
+      parents: [destFolderId],
+      mimeType: 'application/pdf'
+    })
   });
 
-  const pdfData = await pdfRes.json();
-  return pdfData.webViewLink || (pdfData.id ? `https://drive.google.com/file/d/${pdfData.id}/view` : `https://drive.google.com/drive/folders/${destFolderId}`);
+  const createData = await createRes.json();
+  const pdfId = createData.id;
+
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${pdfId}?uploadType=media&supportsAllDrives=true`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/pdf'
+    },
+    body: pdfBlob
+  });
+
+  return `https://drive.google.com/file/d/${pdfId}/view`;
 }
+
+
+
+
 
 
 // 5. 마스터 구글 시트 데이터 Upsert
