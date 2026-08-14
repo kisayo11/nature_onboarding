@@ -173,9 +173,7 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
     headers: { Authorization: `Bearer ${token}` }
   });
 
-  const pdfBlob = await pdfExportRes.blob();
-
-  // PDF 업로드 (1단계: 메타데이터 생성 -> 2단계: 바이너리 내용 패치)
+  // PDF 업로드 (1단계: 메타데이터 생성하여 pdfId 100% 보장 -> 2단계: 바이너리 업로드)
   const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
     method: 'POST',
     headers: {
@@ -192,20 +190,38 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
   const createData = await createRes.json();
   const pdfId = createData.id;
 
+  const pdfArrayBuffer = await pdfExportRes.arrayBuffer();
+  const pdfBytes = new Uint8Array(pdfArrayBuffer);
+
+  let binary = '';
+  for (let i = 0; i < pdfBytes.length; i++) {
+    binary += String.fromCharCode(pdfBytes[i]);
+  }
+  const base64Pdf = typeof Buffer !== 'undefined'
+    ? Buffer.from(pdfBytes).toString('base64')
+    : btoa(binary);
+
   await fetch(`https://www.googleapis.com/upload/drive/v3/files/${pdfId}?uploadType=media&supportsAllDrives=true`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/pdf'
+      'Content-Type': 'application/pdf',
+      'Content-Transfer-Encoding': 'base64'
     },
-    body: pdfBlob
+    body: base64Pdf
   });
 
   // 생성된 PDF 파일에 [링크가 있는 누구나 읽기] 권한 즉시 부여
-  await makeFilePublic(token, pdfId);
+  if (pdfId) {
+    await makeFilePublic(token, pdfId);
+  }
 
   return `https://drive.google.com/file/d/${pdfId}/view`;
 }
+
+
+
+
 
 // 4-1. 링크 공유 권한 설정 (누구나 PDF 미리보기 즉시 열람)
 async function makeFilePublic(token, fileId) {
