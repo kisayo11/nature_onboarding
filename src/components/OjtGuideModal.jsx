@@ -91,7 +91,7 @@ export const OjtGuideContent = ({ googleAppsScriptUrl }) => {
               <i className="ph-bold ph-magnifying-glass"></i>
               <input
                 type="text"
-                placeholder="부서, 담당자 이름, 내선번호 빠른 검색 (예: 원무, 김상용, 905)"
+                placeholder="부서, 담당자 이름, 내선번호 빠른 검색 (예: 원무, 905)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -119,7 +119,7 @@ export const OjtGuideContent = ({ googleAppsScriptUrl }) => {
               ) : (
                 <div className="no-result">
                   <i className="ph-bold ph-warning-circle"></i>
-                  <p>검색 결과가 없습니다. 다른 검색어를 입력해 보세요.</p>
+                  <p>검색 결과가 없습니다.</p>
                 </div>
               )}
             </div>
@@ -224,7 +224,7 @@ export const OjtGuideSection = ({ googleAppsScriptUrl, defaultOpen = false }) =>
           <i className={`ph-bold ${isExpanded ? 'ph-caret-up' : 'ph-caret-down'}`} style={{ fontSize: '1.2rem' }}></i>
         </div>
       </div>
-      
+
       {isExpanded && (
         <div className="step-body ojt-accordion-body" style={{ borderTop: '1px solid #CCFBF1', marginTop: '0.8rem', paddingTop: '1rem', animation: 'fadeIn 0.25s ease-out' }}>
           <OjtGuideContent googleAppsScriptUrl={googleAppsScriptUrl} />

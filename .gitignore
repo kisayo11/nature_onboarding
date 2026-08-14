@@ -1,2 +1,15 @@
 node_modules/
 dist/
+
+# Secret credentials & tokens
+server/*.json
+!server/package.json
+server/node_modules/
+
+# Scratch & test scripts
+scratch/
+server/inspect-sheet.js
+server/exchange-token.js
+server/setup-templates.js
+server/move-pngs.js
+

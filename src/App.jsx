@@ -3,12 +3,14 @@ import OnboardingForm from './components/OnboardingForm'
 import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
 import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
+import { API_BASE_URL, GOOGLE_APPS_SCRIPT_URL } from './config/api'
 
 const App = () => {
   const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
   const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service'
   const [isOjtOpen, setIsOjtOpen] = useState(false)
-  const googleAppsScriptUrl = 'https://script.google.com/macros/s/AKfycbz02oRVPYUNMVW2WW7zJEOtDsoO20PiBX7EMCehK2eyp1NeEBUYabwdKpGe8rt0SCdM/exec'
+  const googleAppsScriptUrl = GOOGLE_APPS_SCRIPT_URL
+
 
   useEffect(() => {
     // 해시 및 쿼리 기반 모드 탐지

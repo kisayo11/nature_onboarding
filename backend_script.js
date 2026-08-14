@@ -5,7 +5,8 @@
 */
 
 // [설정값 - 스프레드시트 ID]
-const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPQSQBhuS5mHoFvR5obY";
+const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPjSQBhuS5mHoFvR5obY";
+
 const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg"; // OJT 전용 공유 시트 ID
 
 // 템플릿 문서 ID
