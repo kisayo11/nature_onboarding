@@ -201,8 +201,31 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
     body: pdfBlob
   });
 
+  // 생성된 PDF 파일에 [링크가 있는 누구나 읽기] 권한 즉시 부여
+  await makeFilePublic(token, pdfId);
+
   return `https://drive.google.com/file/d/${pdfId}/view`;
 }
+
+// 4-1. 링크 공유 권한 설정 (누구나 PDF 미리보기 즉시 열람)
+async function makeFilePublic(token, fileId) {
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone'
+      })
+    });
+  } catch (e) {
+    console.warn('Failed to set public permission for file:', fileId, e);
+  }
+}
+
 
 
 
