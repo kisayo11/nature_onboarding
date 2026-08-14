@@ -276,14 +276,15 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
                   [서류 미리보기]
                 </label>
                 <div style={{ overflow: 'hidden', borderRadius: '8px', backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                  <img
-                    src={`https://drive.google.com/thumbnail?id=${docTemplates[activeDoc]}&sz=w1200`}
-                    alt="Document Preview"
-                    style={{ width: '100%', height: 'auto', display: 'block' }}
+                  <iframe
+                    src={`https://docs.google.com/document/d/${docTemplates[activeDoc]}/preview`}
+                    title="Document Preview"
+                    style={{ width: '100%', height: '450px', border: 'none', borderRadius: '8px' }}
                   />
                 </div>
               </div>
             )}
+
 
             <div className="form-group">
               <label htmlFor="empJob" style={{ color: '#B91C1C' }}>[직종 / Job Title]</label>
