@@ -193,8 +193,9 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
   });
 
   const pdfData = await pdfRes.json();
-  return pdfData.webViewLink || `https://drive.google.com/file/d/${pdfData.id}/view`;
+  return pdfData.webViewLink || (pdfData.id ? `https://drive.google.com/file/d/${pdfData.id}/view` : `https://drive.google.com/drive/folders/${destFolderId}`);
 }
+
 
 // 5. 마스터 구글 시트 데이터 Upsert
 async function saveToSheets(token, { isOffboarding, data, docUrl1, docUrl2, signatureUrl }) {
@@ -332,9 +333,59 @@ export async function submitDocumentDirectly(data) {
   // 3. 시트 기록
   await saveToSheets(token, { isOffboarding, data, docUrl1, docUrl2, signatureUrl: sigResult.url });
 
+  // 4. 노션 & 슬랙 알림 메시지 자동 전송
+  await sendNotifications(token, { isOffboarding, data, docUrl1, docUrl2 });
+
   return {
     result: "success",
     docUrl1,
     docUrl2
   };
 }
+
+// 6. 노션 및 슬랙 알림 메시지 전송 헬퍼
+async function sendNotifications(token, { isOffboarding, data, docUrl1, docUrl2 }) {
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent("'솔라피&슬랙 설정'!A2:C20")}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const configData = await res.json();
+    const rows = configData.values || [];
+    const config = {};
+    rows.forEach(r => { if (r[0]) config[r[0].trim()] = (r[1] || '').trim(); });
+
+    const titleStr = isOffboarding ? `[퇴사 서류 제출 완료 알림] 🍀` : `[신규 입사 서류 제출 완료 알림] 🎉`;
+    const docNameStr = isOffboarding ? "사직원 + 보안서약서" : "안전보건교육 + 개인정보서약서";
+    const messageContent = `${titleStr}\n\n👤 성명: ${data.name}\n🏢 부서/직종: ${data.dept} / ${data.job}\n📄 서류내역: ${docNameStr}\n🔗 서류 1 (PDF): ${docUrl1}\n🔗 서류 2 (PDF): ${docUrl2}`;
+
+    // A. Slack Webhook 알림
+    if (config['SLACK_WEBHOOK_URL']) {
+      await fetch(config['SLACK_WEBHOOK_URL'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: messageContent })
+      }).catch(e => console.warn('Slack send warning:', e));
+    }
+
+    // B. Notion Webhook 알림
+    if (config['NOTION_WEBHOOK_URL']) {
+      await fetch(config['NOTION_WEBHOOK_URL'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: titleStr,
+          name: data.name,
+          dept: data.dept,
+          job: data.job,
+          type: isOffboarding ? '퇴사' : '입사',
+          docUrl1,
+          docUrl2,
+          content: messageContent
+        })
+      }).catch(e => console.warn('Notion send warning:', e));
+    }
+  } catch (err) {
+    console.warn("Notification send warning:", err.message);
+  }
+}
+
