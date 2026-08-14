@@ -14,10 +14,11 @@ const SA_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQE
 const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPjSQBhuS5mHoFvR5obY";
 const SHARED_DRIVE_ROOT_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
 
-const TEMPLATE_SAFETY_ID = "1gM51m_3k4wN8Kj8ZylCgtY6Ccl-d3d6J2KvdhR2yEfs";
-const TEMPLATE_PRIVACY_ID = "1bJ-3zXFmGStcZlS66T0JzX812-788K3dO-Ovw6xKz0E";
-const TEMPLATE_RESIGNATION_ID = "1A8Vf9bXw-xQ00639e_d1K5p6oB6lKjX21fH99Z3N-78";
-const TEMPLATE_SECURITY_OFF_ID = "15i27qV05mD7T3q1b8Z2Wp9z33s69XyH1v1Y8M8f-4K0";
+const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
+const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
+const TEMPLATE_RESIGNATION_ID = "1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk";
+const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs";
+
 
 let cachedAccessToken = null;
 let tokenExpiryTime = 0;
@@ -123,14 +124,14 @@ async function uploadSignature(token, base64Data, filename, parentFolderId) {
   };
 }
 
-// 4. Docs 복사 & 치환 & PDF 변환
+// 4. Docs 복사 & 치환 후 온전한 PDF 파일 생성 및 반환
 async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, dept, job, birth, phone, resignDate, resignReason, destFolderId, docsDestFolderId }) {
   const dateStr = new Date().toLocaleDateString('ko-KR');
   const fileName = `${name}_${dept}_${docLabel}_${dateStr.replace(/\. /g, '.').replace(/\.$/, '')}`;
   const targetDocsFolder = docsDestFolderId || destFolderId;
 
-  // 복사
-  const copyRes = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy?supportsAllDrives=true`, {
+  // [1단계] 템플릿 Google Docs 복사본 생성 (03_원본서류 폴더에 저장)
+  const copyRes = await fetch(`https://www.googleapis.com/drive/v3/files/${templateId}/copy?supportsAllDrives=true&includeItemsFromAllDrives=true`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -141,10 +142,14 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
       parents: [targetDocsFolder]
     })
   });
+
   const copyData = await copyRes.json();
+  if (!copyRes.ok) {
+    throw new Error(`Google Docs 복사 실패: ${JSON.stringify(copyData)}`);
+  }
   const tempDocId = copyData.id;
 
-  // 태그 치환
+  // [2단계] 생성된 Google Docs 문서 태그 치환
   const requests = [
     { replaceAllText: { containsText: { text: '{{이름}}', matchCase: true }, replaceText: name || '' } },
     { replaceAllText: { containsText: { text: '{{성명}}', matchCase: true }, replaceText: name || '' } },
@@ -168,50 +173,43 @@ async function generateDocAndConvertToPdf(token, { templateId, docLabel, name, d
     body: JSON.stringify({ requests })
   });
 
-  // PDF Export
+  // [3단계] 치환 완료된 Google Docs를 PDF 바이너리로 Export
   const pdfExportRes = await fetch(`https://www.googleapis.com/drive/v3/files/${tempDocId}/export?mimeType=application/pdf`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-
-  // PDF 업로드 (1단계: 메타데이터 생성하여 pdfId 100% 보장 -> 2단계: 바이너리 업로드)
-  const createRes = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: `${fileName}.pdf`,
-      parents: [destFolderId],
-      mimeType: 'application/pdf'
-    })
-  });
-
-  const createData = await createRes.json();
-  const pdfId = createData.id;
-
   const pdfArrayBuffer = await pdfExportRes.arrayBuffer();
-  const pdfBytes = new Uint8Array(pdfArrayBuffer);
 
-  let binary = '';
-  for (let i = 0; i < pdfBytes.length; i++) {
-    binary += String.fromCharCode(pdfBytes[i]);
-  }
-  const base64Pdf = typeof Buffer !== 'undefined'
-    ? Buffer.from(pdfBytes).toString('base64')
-    : btoa(binary);
+  // [4단계] 온전한 PDF 파일 생성 (02_서류보관 폴더에 바이너리 업로드)
+  const boundary = '-------314159265358979323846';
+  const delimiter = "\r\n--" + boundary + "\r\n";
+  const close_delim = "\r\n--" + boundary + "--";
 
-  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${pdfId}?uploadType=media&supportsAllDrives=true`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/pdf',
-      'Content-Transfer-Encoding': 'base64'
-    },
-    body: base64Pdf
+  const metadata = {
+    name: `${fileName}.pdf`,
+    parents: [destFolderId],
+    mimeType: 'application/pdf'
+  };
+
+  const metadataPart = `${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`;
+  const fileHeaderPart = `${delimiter}Content-Type: application/pdf\r\n\r\n`;
+
+  const pdfMultipartBlob = new Blob([
+    metadataPart,
+    fileHeaderPart,
+    new Uint8Array(pdfArrayBuffer),
+    close_delim
+  ], { type: `multipart/related; boundary="${boundary}"` });
+
+  const pdfUploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: pdfMultipartBlob
   });
 
-  // 생성된 PDF 파일에 [링크가 있는 누구나 읽기] 권한 즉시 부여
+  const pdfData = await pdfUploadRes.json();
+  const pdfId = pdfData.id;
+
+  // 3. 누구나 읽기 권한 즉시 부여
   if (pdfId) {
     await makeFilePublic(token, pdfId);
   }

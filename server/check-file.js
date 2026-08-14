@@ -11,7 +11,7 @@ async function checkFile() {
   auth.setCredentials(tokens);
 
   const drive = google.drive({ version: 'v3', auth });
-  const fileId = "1PkWexuSfpWC6FHnu67cAEhft4lI5bu8X";
+  const fileId = "1OoR9VucJt4ItuGfuOBiUWU1bUkAXML_H";
 
   try {
     const fileRes = await drive.files.get({
@@ -19,7 +19,7 @@ async function checkFile() {
       supportsAllDrives: true,
       fields: 'id, name, mimeType, size, permissions'
     });
-    console.log("📄 [파일 상태 조사]:", JSON.stringify(fileRes.data, null, 2));
+    console.log("📄 [Docs format=pdf 엔드포인트 수신 파일 상태 조사]:", JSON.stringify(fileRes.data, null, 2));
   } catch (err) {
     console.error("❌ 파일 상태 에러:", err.message);
   }
