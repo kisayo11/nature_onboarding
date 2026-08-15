@@ -1,0 +1,61 @@
+name: Validate and deploy GAS
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend_script.js"
+      - "appsscript.json"
+      - ".clasp.json"
+      - ".claspignore"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    paths:
+      - "backend_script.js"
+      - "appsscript.json"
+      - ".clasp.json"
+      - ".claspignore"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:gas
+      - run: npm run build
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Configure clasp authentication
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON"
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+      - name: Push source and update production deployment
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          test -n "$GAS_DEPLOYMENT_ID"
+          npx clasp push --force
+          npx clasp create-deployment --deploymentId "$GAS_DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"

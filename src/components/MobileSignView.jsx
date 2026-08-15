@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import SignaturePad from './SignaturePad'
+import { saveSignature } from '../services/apiClient'
 
 const MobileSignView = ({ googleAppsScriptUrl }) => {
   const params = new URLSearchParams(window.location.search)
@@ -28,17 +29,12 @@ const MobileSignView = ({ googleAppsScriptUrl }) => {
     }
     setIsSubmitting(true)
     try {
-      const response = await fetch(googleAppsScriptUrl, {
-        method: 'POST',
-        body: JSON.stringify({
+      const result = await saveSignature({
           action: 'saveSignatureOnly',
           name,
           birth,
           signature
-        }),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       })
-      const result = await response.json()
       if (result.result === 'success') {
         setIsDone(true)
       } else {

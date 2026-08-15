@@ -1,784 +1,541 @@
-/* 
-======================================================
-네이처요양병원 온보딩/오프보딩 허브 - 구글 앱스 스크립트 (Backend v2)
-======================================================
-*/
+/* 네이처요양병원 온보딩/오프보딩 허브 - Google Apps Script Backend */
 
-// [설정값 - 스프레드시트 ID]
 const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPjSQBhuS5mHoFvR5obY";
+const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg";
+const DRIVE_ROOT_FOLDER_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
 
-const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg"; // OJT 전용 공유 시트 ID
+const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
+const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
+const TEMPLATE_RESIGNATION_ID = "1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk";
+const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs";
 
-// 템플릿 문서 ID
-const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";   // 신규안전교육 (입사)
-const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";  // 개인정보서약 (입사)
-const TEMPLATE_RESIGNATION_ID = "1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk"; // 사직서 (퇴사)
-const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs"; // 보안서약서 (퇴사)
-
-// 폴더 ID
-const FOLDER_ID = "1fTxLdtcFyaoKLXfCTIkSsHUfehNjfEDh"; // 서명 이미지 저장 폴더
-const DOCS_FOLDER_ID = "1zJOorUiQhFkdQ409h0Ka8FCpC09ldu09"; // 생성된 문서 저장 폴더
+const ONBOARDING_SHEET = "입사자(Onboarding)";
+const OFFBOARDING_SHEET = "퇴사자(Offboarding)";
+const CONFIG_SHEET = "솔라피&슬랙 설정";
+const LOG_SHEET = "처리로그";
+const TIME_ZONE = "Asia/Seoul";
 
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('🌟 네이처 자동화')
-      .addItem('시트 및 설정 초기화', 'initializeAllSheets')
-      .addToUi();
+  SpreadsheetApp.getUi()
+    .createMenu("🌟 네이처 자동화")
+    .addItem("시트 및 설정 초기화", "initializeAllSheets")
+    .addToUi();
 }
 
-// --- 시트 및 설정 초기화 ---
 function initializeAllSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-  
-  // 1. 입사자 시트 설정
-  let onSheet = ss.getSheetByName("입사자(Onboarding)");
-  if (!onSheet) onSheet = ss.insertSheet("입사자(Onboarding)");
-  const onHeaders = ["타임스탬프", "이름", "부서", "직종", "생년월일", "연락처", "서류내역", "서명이미지", "결과_안전교육", "결과_개인정보"];
-  onSheet.getRange(1, 1, 1, onHeaders.length).setValues([onHeaders]);
-  onSheet.setFrozenRows(1);
+  const ss = getSpreadsheet();
+  ensureSheet(ss, ONBOARDING_SHEET, [
+    "타임스탬프", "이름", "부서", "직종", "생년월일", "연락처", "서류내역", "서명이미지", "결과_안전교육", "결과_개인정보"
+  ]);
+  ensureSheet(ss, OFFBOARDING_SHEET, [
+    "타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "개인 IRP 계좌 사본 제출여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"
+  ]);
+  ensureLogSheet(ss);
 
-  // 2. 퇴사자 시트 설정
-  let offSheet = ss.getSheetByName("퇴사자(Offboarding)");
-  if (!offSheet) offSheet = ss.insertSheet("퇴사자(Offboarding)");
-  const offHeaders = ["타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "개인 IRP 계좌 사본 제출여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"];
-  offSheet.getRange(1, 1, 1, offHeaders.length).setValues([offHeaders]);
-  offSheet.setFrozenRows(1);
-
-  // 3. 설정 시트 설정
-  let configSheet = ss.getSheetByName("솔라피&슬랙 설정");
-  if (!configSheet) configSheet = ss.insertSheet("솔라피&슬랙 설정");
-  const configHeaders = ["설정 항목", "설정 값", "설명"];
-  configSheet.getRange(1, 1, 1, configHeaders.length).setValues([configHeaders]);
-  
-  const defaultConfigs = [
-    ["SOLAPI_API_KEY", "", "솔라피에서 발급받은 API Key"],
-    ["SOLAPI_API_SECRET", "", "솔라피에서 발급받은 API Secret"],
-    ["SENDER_NUMBER", "", "솔라피에 등록된 병원 발신번호"],
-    ["SLACK_WEBHOOK_URL", "", "슬랙 채널 Incoming Webhook URL"],
-    ["ON_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 입사 서류 작성이 완료되었습니다. {링크}", "입사자 완료 문자 템플릿"],
-    ["OFF_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 퇴사 서류 작성이 완료되었습니다. {링크}", "퇴사자 완료 문자 템플릿"]
-  ];
-  
-  configSheet.getRange(2, 1, defaultConfigs.length, 3).setValues(defaultConfigs);
+  let configSheet = ss.getSheetByName(CONFIG_SHEET);
+  if (!configSheet) configSheet = ss.insertSheet(CONFIG_SHEET);
+  if (configSheet.getLastRow() === 0) {
+    const rows = [
+      ["설정 항목", "설정 값", "설명"],
+      ["SOLAPI_API_KEY", "", "솔라피 API Key"],
+      ["SOLAPI_API_SECRET", "", "솔라피 API Secret"],
+      ["SENDER_NUMBER", "", "솔라피 등록 발신번호"],
+      ["SLACK_WEBHOOK_URL", "", "Slack Incoming Webhook URL"],
+      ["ON_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 입사 서류 작성이 완료되었습니다. {링크}", "입사 완료 문자"],
+      ["OFF_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 퇴사 서류 작성이 완료되었습니다. {링크}", "퇴사 완료 문자"]
+    ];
+    configSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  }
   configSheet.setFrozenRows(1);
-
-  if (SpreadsheetApp.getUi()) {
-    SpreadsheetApp.getUi().alert("기본 시트 및 설정 탭이 올바르게 생성/초기화 되었습니다!");
-  }
 }
 
-// --- OJT 데이터 동적 로더 (공유된 OJT전용 시트 100% 동적 파싱) ---
-function loadOjtDataFromSheet() {
-  let ss;
+function doGet(e) {
   try {
-    // 1. 지정된 OJT 전용 공유 시트 ID에서 시트 열기 시도
-    ss = SpreadsheetApp.openById(OJT_SPREADSHEET_ID);
-  } catch (err) {
-    // 2. 실패 시 현재 활성화된 스프레드시트에서 열기
-    ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-  }
-  
-  const contacts = [];
-  const floors = [];
-  const tools = [];
-  const welfare = [];
-
-  if (!ss) return { contacts, floors, tools, welfare };
-
-  // 단일 [OJT] 시트 탭 파싱 (우선순위 1)
-  const ojtSheet = ss.getSheetByName("OJT");
-  if (ojtSheet) {
-    const data = ojtSheet.getDataRange().getValues();
-    // 1행은 헤더이므로 2행(index 1)부터 파싱
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-
-      // A~C: 층별
-      if (row[0] || row[1]) {
-        floors.push({
-          floor: String(row[0] || '').trim(),
-          title: String(row[1] || '').trim(),
-          desc: String(row[2] || '').trim()
-        });
-      }
-
-      // D~H: 협업도구
-      if (row[3]) {
-        tools.push({
-          name: String(row[3] || '').trim(),
-          category: String(row[4] || '').trim(),
-          url: String(row[5] || '').trim(),
-          badge: String(row[6] || '').trim(),
-          icon: String(row[7] || 'ph-desktop').trim()
-        });
-      }
-
-      // I~L: 복리후생
-      if (row[8]) {
-        welfare.push({
-          title: String(row[8] || '').trim(),
-          desc: String(row[9] || '').trim(),
-          icon: String(row[10] || 'ph-gift').trim(),
-          color: String(row[11] || 'blue').trim()
-        });
-      }
-
-      // M~O: 내선
-      if (row[12] || row[14]) {
-        contacts.push({
-          dept: String(row[12] || '').trim(),
-          name: String(row[13] || '').trim(),
-          ext: String(row[14] || '').trim(),
-          role: String(row[12] || '').trim()
-        });
-      }
+    const params = (e && e.parameter) || {};
+    if (params.action === "getOjtData") {
+      return jsonResponse({ result: "success", data: loadOjtDataFromSheet() });
     }
+    if (params.action === "getSignature") {
+      requireFields(params, ["name", "birth"]);
+      const folder = getStorageFolders(false).signature;
+      const fileName = signatureFileName(params.name, params.birth);
+      const files = folder.getFilesByName(fileName);
+      if (!files.hasNext()) return jsonResponse({ result: "success", exists: false });
 
-    return { contacts, floors, tools, welfare };
-  }
-
-  // 개별 시트 탭 파싱 (Fallback)
-  const contactsSheet = ss.getSheetByName("OJT_내선");
-  if (contactsSheet) {
-    const data = contactsSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] || data[i][1]) {
-        contacts.push({
-          dept: String(data[i][0] || ''),
-          name: String(data[i][1] || ''),
-          ext: String(data[i][2] || ''),
-          role: String(data[i][3] || '')
-        });
-      }
+      const file = files.next();
+      return jsonResponse({
+        result: "success",
+        exists: true,
+        signatureData: "data:image/png;base64," + Utilities.base64Encode(file.getBlob().getBytes()),
+        driveUrl: driveContentUrl(file.getId())
+      });
     }
+    return jsonResponse({ result: "error", message: "잘못된 요청입니다." });
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  const floorsSheet = ss.getSheetByName("OJT_층별");
-  if (floorsSheet) {
-    const data = floorsSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] || data[i][1]) {
-        floors.push({
-          floor: String(data[i][0] || ''),
-          title: String(data[i][1] || ''),
-          desc: String(data[i][2] || '')
-        });
-      }
-    }
-  }
-
-  const toolsSheet = ss.getSheetByName("OJT_협업도구");
-  if (toolsSheet) {
-    const data = toolsSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0]) {
-        tools.push({
-          name: String(data[i][0] || ''),
-          category: String(data[i][1] || ''),
-          url: String(data[i][2] || ''),
-          badge: String(data[i][3] || ''),
-          icon: String(data[i][4] || 'ph-desktop')
-        });
-      }
-    }
-  }
-
-  const welfareSheet = ss.getSheetByName("OJT_복리후생");
-  if (welfareSheet) {
-    const data = welfareSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0]) {
-        welfare.push({
-          title: String(data[i][0] || ''),
-          desc: String(data[i][1] || ''),
-          icon: String(data[i][2] || 'ph-gift'),
-          color: String(data[i][3] || 'blue')
-        });
-      }
-    }
-  }
-
-  return { contacts, floors, tools, welfare };
 }
 
-// --- 설정값 로더 ---
-function loadConfig() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName("솔라피&슬랙 설정");
-  const config = {};
-  if (!sheet) return config;
-  
-  const data = sheet.getDataRange().getValues();
-  // 1행이 헤더인지 바로 데이터인지 판별 (헤더가 없으면 0행부터 읽기)
-  const firstCell = String(data[0][0]).trim();
-  const startRow = (firstCell === "설정 항목" || firstCell === "설정항목" || firstCell === "키" || firstCell === "Key") ? 1 : 0;
-  
-  for (let i = startRow; i < data.length; i++) {
-    const key = String(data[i][0]).trim();
-    const val = String(data[i][1]).trim();
-    if (key) {
-      config[key] = val;
+function doPost(e) {
+  let data;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch (error) {
+    return jsonResponse({ result: "error", message: "요청 본문이 올바른 JSON이 아닙니다." });
+  }
+
+  try {
+    if (data.action === "saveSignatureOnly") return saveSignatureOnly(data);
+    if (data.action === "sendSmsLink") return sendSmsLink(data);
+    return processSubmission(data);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+function saveSignatureOnly(data) {
+  requireFields(data, ["name", "birth", "signature"]);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
+  try {
+    const saved = saveSignature(data.name, data.birth, data.signature);
+    return jsonResponse({ result: "success", driveUrl: saved.url });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sendSmsLink(data) {
+  requireFields(data, ["name", "phone", "link", "type"]);
+  const config = loadConfig();
+  requireConfig(config, ["SOLAPI_API_KEY", "SOLAPI_API_SECRET", "SENDER_NUMBER"]);
+  const label = data.type === "onboarding" ? "입사" : "퇴사";
+  const message = `[네이처요양병원] ${data.name}님, 아래 링크에서 ${label} 서류 작성을 완료해 주세요:\n${data.link}`;
+  withRetry(function () {
+    sendSolapiSms(config.SOLAPI_API_KEY, config.SOLAPI_API_SECRET, config.SENDER_NUMBER, data.phone, message);
+  }, 3);
+  return jsonResponse({ result: "success" });
+}
+
+function processSubmission(data) {
+  requireFields(data, ["name", "dept", "job", "birth", "docType", "signature"]);
+  const isOffboarding = data.docType.indexOf("사직원") !== -1 || data.docType.indexOf("보안서약") !== -1;
+  if (isOffboarding) requireFields(data, ["resignDate", "resignReason"]);
+  else requireFields(data, ["phone"]);
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 제출을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
+
+  const jobId = Utilities.getUuid();
+  const startedAt = new Date();
+  const createdFileIds = [];
+  let logRow = 0;
+
+  try {
+    logRow = startProcessingLog(jobId, startedAt, data.name, isOffboarding ? "퇴사" : "입사");
+    const folders = getStorageFolders(isOffboarding);
+    const signature = resolveSignature(data, folders.signature);
+    updateProcessingLog(logRow, "문서 생성", { signatureId: signature.id });
+
+    const documents = isOffboarding
+      ? [
+          generateDocument(TEMPLATE_RESIGNATION_ID, "사직원", data, signature.id, startedAt, folders, createdFileIds),
+          generateDocument(TEMPLATE_SECURITY_OFF_ID, "보안서약_퇴사", data, signature.id, startedAt, folders, createdFileIds)
+        ]
+      : [
+          generateDocument(TEMPLATE_SAFETY_ID, "안전보건교육", data, signature.id, startedAt, folders, createdFileIds),
+          generateDocument(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", data, signature.id, startedAt, folders, createdFileIds)
+        ];
+
+    updateProcessingLog(logRow, "시트 기록", {
+      doc1Id: documents[0].docId,
+      pdf1Id: documents[0].pdfId,
+      doc2Id: documents[1].docId,
+      pdf2Id: documents[1].pdfId
+    });
+    upsertSubmission(data, isOffboarding, signature.url, documents[0].url, documents[1].url, startedAt);
+
+    const notificationErrors = sendCompletionNotifications(data, isOffboarding, documents, startedAt);
+    finishProcessingLog(logRow, notificationErrors.length ? "완료(알림오류)" : "완료", notificationErrors.join(" | "));
+
+    return jsonResponse({
+      result: "success",
+      jobId: jobId,
+      docUrl1: documents[0].url,
+      docUrl2: documents[1].url,
+      notificationStatus: notificationErrors.length ? "failed" : "success",
+      notificationErrors: notificationErrors
+    });
+  } catch (error) {
+    trashFiles(createdFileIds);
+    if (logRow) finishProcessingLog(logRow, "실패", error.message || String(error));
+    return jsonResponse({ result: "error", jobId: jobId, message: error.message || String(error) });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function resolveSignature(data, signatureFolder) {
+  if (String(data.signature).indexOf("data:image/") === 0) {
+    return saveSignature(data.name, data.birth, data.signature, signatureFolder);
+  }
+  const id = extractDriveFileId(data.signature);
+  if (!id) throw new Error("서명 이미지 주소가 올바르지 않습니다.");
+  DriveApp.getFileById(id).getBlob();
+  return { id: id, url: driveContentUrl(id) };
+}
+
+function saveSignature(name, birth, dataUrl, folder) {
+  const parts = String(dataUrl).split(",");
+  if (parts.length !== 2) throw new Error("서명 이미지 데이터가 올바르지 않습니다.");
+  folder = folder || getStorageFolders(false).signature;
+  const fileName = signatureFileName(name, birth);
+  const blob = Utilities.newBlob(Utilities.base64Decode(parts[1]), "image/png", fileName);
+
+  // 새 파일 생성이 성공한 뒤 기존 파일을 정리해야 서명 유실을 막을 수 있다.
+  const oldFiles = folder.getFilesByName(fileName);
+  const file = folder.createFile(blob);
+  while (oldFiles.hasNext()) {
+    const oldFile = oldFiles.next();
+    if (oldFile.getId() !== file.getId()) oldFile.setTrashed(true);
+  }
+  return { id: file.getId(), url: driveContentUrl(file.getId()) };
+}
+
+function generateDocument(templateId, label, data, signatureId, timestamp, folders, createdFileIds) {
+  const dateText = Utilities.formatDate(timestamp, TIME_ZONE, "yyyy. MM. dd.");
+  const fileName = `${sanitizeFileName(data.name)}_${sanitizeFileName(data.dept)}_${label}_${dateText}`;
+  const docFile = DriveApp.getFileById(templateId).makeCopy(fileName, folders.original);
+  createdFileIds.push(docFile.getId());
+
+  const doc = DocumentApp.openById(docFile.getId());
+  const body = doc.getBody();
+  const replacements = {
+    "{{이름}}": data.name,
+    "{{성명}}": data.name,
+    "{{소속}}": data.dept,
+    "{{부서}}": data.dept,
+    "{{직종}}": data.job,
+    "{{직위}}": data.job,
+    "{{생년월일}}": formatInputDate(data.birth),
+    "{{연락처}}": data.phone || "",
+    "{{010-1234-5678}}": data.phone || "",
+    "{{사직일}}": formatInputDate(data.resignDate),
+    "{{사유}}": data.resignReason || "",
+    "{{사직사유}}": data.resignReason || "",
+    "{{날짜}}": dateText,
+    "{{입사일}}": getJoinDate(data.name, data.phone, data.birth)
+  };
+  Object.keys(replacements).forEach(function (tag) {
+    body.replaceText(escapeRegExp(tag), String(replacements[tag]));
+  });
+
+  const signatureLocation = body.findText(escapeRegExp("{{서명}}"));
+  if (!signatureLocation) {
+    doc.saveAndClose();
+    throw new Error(`${label} 템플릿에서 {{서명}} 태그를 찾을 수 없습니다.`);
+  }
+  const textElement = signatureLocation.getElement().asText();
+  textElement.deleteText(signatureLocation.getStartOffset(), signatureLocation.getEndOffsetInclusive());
+  const image = textElement.getParent().asParagraph().appendInlineImage(DriveApp.getFileById(signatureId).getBlob());
+  image.setWidth(100).setHeight(60);
+  doc.saveAndClose();
+
+  const pdfFile = folders.pdf.createFile(docFile.getAs(MimeType.PDF)).setName(fileName + ".pdf");
+  createdFileIds.push(pdfFile.getId());
+  return { docId: docFile.getId(), pdfId: pdfFile.getId(), url: pdfFile.getUrl() };
+}
+
+function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, timestamp) {
+  const sheet = getSpreadsheet().getSheetByName(isOffboarding ? OFFBOARDING_SHEET : ONBOARDING_SHEET);
+  if (!sheet) throw new Error("대상 기록 시트가 없습니다. 먼저 시트 초기화를 실행해 주세요.");
+
+  const values = sheet.getDataRange().getValues();
+  const keyDate = isOffboarding ? data.resignDate : data.birth;
+  let rowNumber = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][1]).trim() === String(data.name).trim() && normalizeDate(values[i][4]) === keyDate) {
+      rowNumber = i + 1;
+      break;
     }
   }
-  Logger.log("Loaded Config Keys: " + Object.keys(config).join(", "));
-  Logger.log("SLACK_WEBHOOK_URL: [" + config['SLACK_WEBHOOK_URL'] + "]");
+
+  const row = isOffboarding
+    ? [timestamp, data.name, data.dept, data.job, data.resignDate, data.resignReason, data.checkCard, data.checkUniform, data.checkIrp, data.docType, signatureUrl, docUrl1, docUrl2]
+    : [timestamp, data.name, data.dept, data.job, data.birth, data.phone, data.docType, signatureUrl, docUrl1, docUrl2];
+  if (!rowNumber) rowNumber = Math.max(sheet.getLastRow() + 1, 2);
+  sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
+}
+
+function sendCompletionNotifications(data, isOffboarding, documents, timestamp) {
+  const config = loadConfig();
+  const errors = [];
+  const phone = data.phone || findPhoneByNameAndBirth(data.name, data.birth);
+  const template = config[isOffboarding ? "OFF_SMS_TEMPLATE" : "ON_SMS_TEMPLATE"] || "";
+
+  if (template && phone && config.SOLAPI_API_KEY && config.SOLAPI_API_SECRET && config.SENDER_NUMBER) {
+    const message = template.replace(/\{이름\}/g, data.name).replace(/\{링크\}/g, documents[0].url);
+    try {
+      withRetry(function () {
+        sendSolapiSms(config.SOLAPI_API_KEY, config.SOLAPI_API_SECRET, config.SENDER_NUMBER, phone, message);
+      }, 3);
+    } catch (error) {
+      errors.push("SMS: " + error.message);
+    }
+  }
+
+  if (config.SLACK_WEBHOOK_URL) {
+    const typeLabel = isOffboarding ? "퇴사자 서류 제출" : "신규 입사자 서류 제출";
+    const slackMessage = `📢 *[${typeLabel}] ${data.name} (${data.dept} / ${data.job})*\n• 날짜: ${Utilities.formatDate(timestamp, TIME_ZONE, "yyyy-MM-dd HH:mm")}\n• 서류: ${documents[0].url}\n• 서류: ${documents[1].url}`;
+    try {
+      withRetry(function () { sendSlackNotification(config.SLACK_WEBHOOK_URL, slackMessage); }, 3);
+    } catch (error) {
+      errors.push("Slack: " + error.message);
+    }
+  }
+  return errors;
+}
+
+function sendSolapiSms(apiKey, apiSecret, sender, receiver, text) {
+  const date = new Date().toISOString();
+  const salt = Utilities.getUuid().replace(/-/g, "");
+  const signature = byteToHex(Utilities.computeHmacSignature(Utilities.MacAlgorithm.HMAC_SHA_256, date + salt, apiSecret));
+  const response = UrlFetchApp.fetch("https://api.solapi.com/messages/v4/send", {
+    method: "post",
+    contentType: "application/json",
+    headers: { Authorization: `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}` },
+    payload: JSON.stringify({ message: { to: String(receiver).replace(/[^0-9]/g, ""), from: sender, text: text } }),
+    muteHttpExceptions: true
+  });
+  assertHttpSuccess(response, "Solapi");
+}
+
+function sendSlackNotification(webhookUrl, message) {
+  const response = UrlFetchApp.fetch(webhookUrl, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({ text: message }),
+    muteHttpExceptions: true
+  });
+  assertHttpSuccess(response, "Slack");
+}
+
+function assertHttpSuccess(response, serviceName) {
+  const code = response.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error(`${serviceName} HTTP ${code}: ${response.getContentText()}`);
+}
+
+function withRetry(operation, attempts) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) Utilities.sleep(500 * attempt);
+    }
+  }
+  throw lastError;
+}
+
+function getStorageFolders(isOffboarding) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const year = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy") + "년";
+  return {
+    signature: getOrCreateFolder(getOrCreateFolder(root, "01_서명보관"), year),
+    pdf: getOrCreateFolder(getOrCreateFolder(getOrCreateFolder(root, "02_서류보관"), year), isOffboarding ? "02_퇴사자서류" : "01_입사자서류"),
+    original: getOrCreateFolder(getOrCreateFolder(root, "03_원본서류"), year)
+  };
+}
+
+function getOrCreateFolder(parent, name) {
+  const folders = parent.getFoldersByName(name);
+  return folders.hasNext() ? folders.next() : parent.createFolder(name);
+}
+
+function startProcessingLog(jobId, startedAt, name, type) {
+  const sheet = ensureLogSheet(getSpreadsheet());
+  sheet.appendRow([jobId, startedAt, "", name, type, "처리중", "서명 저장", "", "", "", "", "", ""]);
+  return sheet.getLastRow();
+}
+
+function updateProcessingLog(row, stage, ids) {
+  const sheet = ensureLogSheet(getSpreadsheet());
+  sheet.getRange(row, 7).setValue(stage);
+  if (ids.signatureId) sheet.getRange(row, 8).setValue(ids.signatureId);
+  if (ids.doc1Id) sheet.getRange(row, 9, 1, 4).setValues([[ids.doc1Id, ids.pdf1Id, ids.doc2Id, ids.pdf2Id]]);
+}
+
+function finishProcessingLog(row, status, message) {
+  const sheet = ensureLogSheet(getSpreadsheet());
+  sheet.getRange(row, 3).setValue(new Date());
+  sheet.getRange(row, 6, 1, 2).setValues([[status, "완료"]]);
+  sheet.getRange(row, 13).setValue(message || "");
+}
+
+function ensureLogSheet(ss) {
+  return ensureSheet(ss, LOG_SHEET, [
+    "작업ID", "시작시각", "완료시각", "이름", "구분", "상태", "단계", "서명ID", "원본문서1ID", "PDF1ID", "원본문서2ID", "PDF2ID", "오류"
+  ]);
+}
+
+function ensureSheet(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function trashFiles(fileIds) {
+  fileIds.forEach(function (id) {
+    try { DriveApp.getFileById(id).setTrashed(true); } catch (ignored) { Logger.log(ignored); }
+  });
+}
+
+function loadConfig() {
+  const sheet = getSpreadsheet().getSheetByName(CONFIG_SHEET);
+  const config = {};
+  if (!sheet || sheet.getLastRow() === 0) return config;
+  const rows = sheet.getDataRange().getValues();
+  const start = String(rows[0][0]).trim() === "설정 항목" ? 1 : 0;
+  for (let i = start; i < rows.length; i++) {
+    const key = String(rows[i][0] || "").trim();
+    if (key) config[key] = String(rows[i][1] || "").trim();
+  }
   return config;
 }
 
-// --- 서명 이미지 조회 API (doGet) ---
-function doGet(e) {
-  try {
-    const action = e.parameter.action;
-    const name = e.parameter.name;
-    const birth = e.parameter.birth; // yyyy-mm-dd
-    
-    if (action === "getOjtData") {
-      const ojtData = loadOjtDataFromSheet();
-      return ContentService.createTextOutput(JSON.stringify({
-        result: "success",
-        data: ojtData
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    if (action === "getSignature" && name && birth) {
-      const folder = DriveApp.getFolderById(FOLDER_ID);
-      const searchName = `[서명] ${name}_${birth}.png`;
-      const files = folder.getFilesByName(searchName);
-      
-      if (files.hasNext()) {
-        const file = files.next();
-        const bytes = file.getBlob().getBytes();
-        const base64Data = "data:image/png;base64," + Utilities.base64Encode(bytes);
-        const driveUrl = "https://drive.google.com/uc?id=" + file.getId();
-        
-        return ContentService.createTextOutput(JSON.stringify({ 
-          result: "success", 
-          exists: true, 
-          signatureData: base64Data,
-          driveUrl: driveUrl
-        })).setMimeType(ContentService.MimeType.JSON);
-      } else {
-        return ContentService.createTextOutput(JSON.stringify({ 
-          result: "success", 
-          exists: false 
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: "잘못된 요청 파라미터입니다." })).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
-  }
+function getSpreadsheet() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
-// --- 서명 제출 및 실시간 문서 제작 API (doPost) ---
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    
-    // 1. 단독 서명 저장 API
-    if (data.action === "saveSignatureOnly") {
-      const base64Data = data.signature.split(",")[1];
-      const fileName = `[서명] ${data.name}_${data.birth}.png`;
-      const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), "image/png", fileName);
-      const folder = DriveApp.getFolderById(FOLDER_ID);
-      const existingFiles = folder.getFilesByName(fileName);
-      while (existingFiles.hasNext()) {
-        existingFiles.next().setTrashed(true);
-      }
-      const file = folder.createFile(blob);
-      const sigUrl = "https://drive.google.com/uc?id=" + file.getId();
-      return ContentService.createTextOutput(JSON.stringify({ 
-        result: "success", 
-        driveUrl: sigUrl
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 2. 비대면 작성 링크 발송 API
-    if (data.action === "sendSmsLink") {
-      const config = loadConfig();
-      const typeLabel = data.type === 'onboarding' ? '입사' : '퇴사';
-      const message = `[네이처요양병원] ${data.name}님, 아래 링크를 눌러 ${typeLabel} 서류 작성을 완료해 주세요:\n${data.link}`;
-      
-      if (config['SOLAPI_API_KEY'] && config['SOLAPI_API_SECRET'] && config['SENDER_NUMBER'] && data.phone) {
-        sendSolapiSms(config['SOLAPI_API_KEY'], config['SOLAPI_API_SECRET'], config['SENDER_NUMBER'], data.phone, message);
-        return ContentService.createTextOutput(JSON.stringify({ result: "success" })).setMimeType(ContentService.MimeType.JSON);
-      } else {
-        return ContentService.createTextOutput(JSON.stringify({ result: "error", message: "솔라피 설정(API Key/Secret, 발신번호) 또는 수신 번호가 비어 있습니다." })).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    const config = loadConfig();
-    
-    // 입/퇴사자 판별
-    const isOffboarding = data.docType.includes("사직원") || data.docType.includes("보안서약");
-    const sheetName = isOffboarding ? "퇴사자(Offboarding)" : "입사자(Onboarding)";
-    let sheet = ss.getSheetByName(sheetName);
-    
-    if (!sheet) {
-      throw new Error(`'${sheetName}' 시트를 찾을 수 없습니다.`);
-    }
-
-    const timestamp = new Date();
-    
-    // 1. 서명 이미지 드라이브 저장 또는 기존 파일 재사용
-    let sigUrl = "";
-    if (data.signature.startsWith("data:image/png;base64,")) {
-      const base64Data = data.signature.split(",")[1];
-      const fileName = `[서명] ${data.name}_${data.birth}.png`;
-      const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), "image/png", fileName);
-      
-      // 기존에 동일한 서명이 있다면 구글 드라이브 파일 찾아서 삭제 후 새로 갱신
-      const folder = DriveApp.getFolderById(FOLDER_ID);
-      const existingFiles = folder.getFilesByName(fileName);
-      while (existingFiles.hasNext()) {
-        existingFiles.next().setTrashed(true);
-      }
-      
-      const file = folder.createFile(blob);
-      sigUrl = "https://drive.google.com/uc?id=" + file.getId();
-    } else if (data.signature.startsWith("http")) {
-      sigUrl = data.signature; // 이미 드라이브 URL이 넘어온 경우 그대로 재사용
-    }
-
-    if (!sigUrl) {
-      throw new Error("서명 이미지가 존재하지 않거나 잘못되었습니다.");
-    }
-
-    // 2. 월별 문서 보관 폴더 가져오기
-    const destFolder = getOrCreateMonthlyFolder(DOCS_FOLDER_ID);
-
-    // 3. 실시간 문서 자동화 및 PDF 변환
-    let docUrl1 = "";
-    let docUrl2 = "";
-
-    if (!isOffboarding) {
-      // 입사자 문서 2건 자동 제작
-      docUrl1 = generateDocAndConvertToPdf(TEMPLATE_SAFETY_ID, "안전보건교육", data.name, data.dept, data.job, data.birth, data.phone, "", "", sigUrl, timestamp, destFolder);
-      docUrl2 = generateDocAndConvertToPdf(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", data.name, data.dept, data.job, data.birth, data.phone, "", "", sigUrl, timestamp, destFolder);
-    } else {
-      // 퇴사자 문서 2건 자동 제작
-      docUrl1 = generateDocAndConvertToPdf(TEMPLATE_RESIGNATION_ID, "사직원", data.name, data.dept, data.job, data.birth, "", data.resignDate, data.resignReason, sigUrl, timestamp, destFolder);
-      docUrl2 = generateDocAndConvertToPdf(TEMPLATE_SECURITY_OFF_ID, "보안서약_퇴사", data.name, data.dept, data.job, data.birth, "", data.resignDate, data.resignReason, sigUrl, timestamp, destFolder);
-    }
-
-    // 4. 데이터베이스 연동 (Upsert 병합 기법)
-    let matchedRowIndex = -1;
-    const sheetData = sheet.getDataRange().getValues();
-
-    if (!isOffboarding) {
-      // 입사자: 이름(B열) + 생년월일(E열, yyyy-mm-dd) 기준
-      for (let i = 1; i < sheetData.length; i++) {
-        const rowName = sheetData[i][1];
-        const rowBirthVal = sheetData[i][4];
-        
-        let rowBirth = "";
-        if (rowBirthVal instanceof Date) {
-          rowBirth = Utilities.formatDate(rowBirthVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        } else {
-          rowBirth = String(rowBirthVal).trim();
-        }
-        
-        if (rowName === data.name && rowBirth === data.birth) {
-          matchedRowIndex = i + 1; // 1-indexed
-          break;
-        }
-      }
-    } else {
-      // 퇴사자: 이름(B열) + 사직일(E열, yyyy-mm-dd) 기준
-      for (let i = 1; i < sheetData.length; i++) {
-        const rowName = sheetData[i][1];
-        const rowResignVal = sheetData[i][4];
-        
-        let rowResign = "";
-        if (rowResignVal instanceof Date) {
-          rowResign = Utilities.formatDate(rowResignVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        } else {
-          rowResign = String(rowResignVal).trim();
-        }
-        
-        if (rowName === data.name && rowResign === data.resignDate) {
-          matchedRowIndex = i + 1; // 1-indexed
-          break;
-        }
-      }
-    }
-
-    if (matchedRowIndex !== -1) {
-      // 매칭 성공 시 데이터 업데이트 (Upsert - Update)
-      if (!isOffboarding) {
-        // [입사자] A: 타임스탬프, B: 이름, C: 부서, D: 직종, E: 생년월일, F: 연락처, G: 서류내역, H: 서명이미지, I: 결과_안전교육, J: 결과_개인정보
-        sheet.getRange(matchedRowIndex, 1).setValue(timestamp);
-        sheet.getRange(matchedRowIndex, 3).setValue(data.dept);
-        sheet.getRange(matchedRowIndex, 4).setValue(data.job);
-        sheet.getRange(matchedRowIndex, 6).setValue(data.phone);
-        sheet.getRange(matchedRowIndex, 7).setValue(data.docType);
-        sheet.getRange(matchedRowIndex, 8).setValue(sigUrl);
-        sheet.getRange(matchedRowIndex, 9).setValue(docUrl1);
-        sheet.getRange(matchedRowIndex, 10).setValue(docUrl2);
-      } else {
-        // [퇴사자] A: 타임스탬프, B: 이름, C: 부서, D: 직종, E: 사직일, F: 사직사유, G: 출입카드, H: 검사및유니폼, I: 개인 IRP 계좌 사본 제출여부, J: 서류내역, K: 서명이미지, L: 결과_사직서, M: 결과_보안서약
-        sheet.getRange(matchedRowIndex, 1).setValue(timestamp);
-        sheet.getRange(matchedRowIndex, 3).setValue(data.dept);
-        sheet.getRange(matchedRowIndex, 4).setValue(data.job);
-        sheet.getRange(matchedRowIndex, 6).setValue(data.resignReason);
-        sheet.getRange(matchedRowIndex, 7).setValue(data.checkCard);
-        sheet.getRange(matchedRowIndex, 8).setValue(data.checkUniform);
-        sheet.getRange(matchedRowIndex, 9).setValue(data.checkIrp);
-        sheet.getRange(matchedRowIndex, 10).setValue(data.docType);
-        sheet.getRange(matchedRowIndex, 11).setValue(sigUrl);
-        sheet.getRange(matchedRowIndex, 12).setValue(docUrl1);
-        sheet.getRange(matchedRowIndex, 13).setValue(docUrl2);
-      }
-    } else {
-      // 매칭 실패 시 데이터 추가 (Upsert - Insert)
-      if (!isOffboarding) {
-        sheet.appendRow([timestamp, data.name, data.dept, data.job, data.birth, data.phone, data.docType, sigUrl, docUrl1, docUrl2]);
-      } else {
-        sheet.appendRow([timestamp, data.name, data.dept, data.job, data.resignDate, data.resignReason, data.checkCard, data.checkUniform, data.checkIrp, data.docType, sigUrl, docUrl1, docUrl2]);
-      }
-    }
-
-    // 5. 알림 연동 (솔라피 문자 & 슬랙 알림)
-    const rawTemplate = isOffboarding ? config['OFF_SMS_TEMPLATE'] : config['ON_SMS_TEMPLATE'];
-    const smsTemplate = rawTemplate || "";
-    const message = smsTemplate
-      ? smsTemplate.replace("{이름}", data.name).replace("{링크}", docUrl1)
-      : "";
-      
-    // 솔라피 문자 전송
-    if (config['SOLAPI_API_KEY'] && config['SOLAPI_API_SECRET'] && config['SENDER_NUMBER'] && data.phone) {
-      Logger.log("솔라피 문자 전송 시도: " + data.phone);
-      sendSolapiSms(config['SOLAPI_API_KEY'], config['SOLAPI_API_SECRET'], config['SENDER_NUMBER'], data.phone, message);
-    } else {
-      Logger.log("솔라피 전송 스킵 (설정 누락 또는 수신번호 없음)");
-    }
-    
-    // 슬랙 웹훅 전송
-    let slackStatus = "skipped";
-    let slackErrorMsg = "";
-    if (config['SLACK_WEBHOOK_URL']) {
-      Logger.log("슬랙 알림 전송 시도");
-      const typeLabel = isOffboarding ? "퇴사자 서류 제출" : "신규 입사자 서류 제출";
-      const slackMessage = `📢 *[${typeLabel}] ${data.name} (${data.dept} / ${data.job})*\n• 날짜: ${Utilities.formatDate(timestamp, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n• 서류내역: ${data.docType}\n• 첫번째 서류: ${docUrl1}\n• 두번째 서류: ${docUrl2}`;
-      
-      try {
-        sendSlackNotification(config['SLACK_WEBHOOK_URL'], slackMessage);
-        slackStatus = "success";
-      } catch (slackError) {
-        slackStatus = "fail";
-        slackErrorMsg = slackError.toString();
-      }
-    } else {
-      Logger.log("슬랙 전송 스킵 (SLACK_WEBHOOK_URL 설정 누락)");
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({ 
-      result: "success", 
-      docUrl1: docUrl1,
-      docUrl2: docUrl2,
-      slackStatus: slackStatus,
-      slackError: slackErrorMsg
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (error) {
-    Logger.log("doPost 실행 중 에러 발생: " + error.toString());
-    return ContentService.createTextOutput(JSON.stringify({ result: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
-  }
+function requireFields(data, fields) {
+  const missing = fields.filter(function (field) { return !String(data[field] || "").trim(); });
+  if (missing.length) throw new Error("필수 항목이 없습니다: " + missing.join(", "));
 }
 
-// --- 구글 독스 기반 실시간 문서 빌드 및 PDF 변환 ---
-function generateDocAndConvertToPdf(templateId, docLabel, name, dept, job, birth, phone, resignDate, resignReason, signatureUrl, timestamp, destFolder) {
-  const docDate = (timestamp instanceof Date) ? timestamp : (timestamp ? new Date(timestamp) : new Date());
-  const dateStr = Utilities.formatDate(docDate, Session.getScriptTimeZone(), "yyyy. MM. dd.");
-
-  // 입사일 자동 조회
-  const joinDateStr = getJoinDate(name, phone, birth);
-
-  if (!signatureUrl) {
-    throw new Error("서명 이미지 주소가 없습니다.");
-  }
-
-  // 1. 드라이브 내 서명 파일 획득
-  let signatureBlob;
-  try {
-    const signatureId = signatureUrl.split("id=")[1];
-    signatureBlob = DriveApp.getFileById(signatureId).getBlob();
-  } catch (e) {
-    // 혹시 id 파싱이 안 되는 일반 URL 형태일 경우 URLFetch로 시도
-    signatureBlob = UrlFetchApp.fetch(signatureUrl).getBlob();
-  }
-
-  // 2. 템플릿 복사
-  const fileName = `${name}_${dept}_${docLabel}_${dateStr}`;
-  const docCopy = DriveApp.getFileById(templateId).makeCopy(fileName, destFolder);
-  const doc = DocumentApp.openById(docCopy.getId());
-  const body = doc.getBody();
-
-  // 3. 템플릿 태그 치환
-  body.replaceText("{{이름}}", name);
-  body.replaceText("{{성명}}", name);
-  body.replaceText("{{소속}}", dept);
-  body.replaceText("{{부서}}", dept);
-  body.replaceText("{{직종}}", job);
-  body.replaceText("{{직위}}", job);
-
-  // 생년월일 포맷 치환 (yyyy-mm-dd -> yyyy. mm. dd. 혹은 그냥 기입)
-  let birthStr = "";
-  if (birth) {
-    const dateObj = new Date(birth);
-    if (!isNaN(dateObj.getTime())) {
-      birthStr = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy. MM. dd.");
-    } else {
-      birthStr = birth;
-    }
-  }
-  body.replaceText("{{생년월일}}", birthStr);
-  body.replaceText("{{연락처}}", phone || "");
-  body.replaceText("{{010-1234-5678}}", phone || "");
-
-  // 사직일 및 사직 사유 치환
-  let resignStr = "";
-  if (resignDate) {
-    const dateObj = new Date(resignDate);
-    if (!isNaN(dateObj.getTime())) {
-      resignStr = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy. MM. dd.");
-    } else {
-      resignStr = resignDate;
-    }
-  }
-  body.replaceText("{{사직일}}", resignStr);
-  body.replaceText("{{사유}}", resignReason || "");
-  body.replaceText("{{사직사유}}", resignReason || "");
-
-  body.replaceText("{{날짜}}", dateStr);
-  body.replaceText("{{입사일}}", joinDateStr);
-
-  // 4. 서명 이미지 삽입
-  const signatureLocation = body.findText("{{서명}}");
-  if (signatureLocation) {
-    const element = signatureLocation.getElement();
-    element.asText().setText("");
-    const para = element.getParent().asParagraph();
-    const image = para.appendInlineImage(signatureBlob);
-    image.setWidth(100).setHeight(60);
-  }
-
-  doc.saveAndClose();
-
-  // 5. 생성된 문서를 PDF로 내보내어 동일 폴더에 보관
-  const pdfBlob = docCopy.getAs(MimeType.PDF);
-  const pdfFile = destFolder.createFile(pdfBlob);
-  pdfFile.setName(`${fileName}.pdf`);
-  
-  // 원본 임시 Docs 문서 삭제 (드라이브가 PDF로만 깔끔하게 보관되길 원함)
-  docCopy.setTrashed(true);
-
-  return pdfFile.getUrl();
+function requireConfig(config, fields) {
+  const missing = fields.filter(function (field) { return !config[field]; });
+  if (missing.length) throw new Error("설정 시트에 필요한 값이 없습니다: " + missing.join(", "));
 }
 
-// --- 월별 폴더 자동 아카이빙 엔진 ---
-function getOrCreateMonthlyFolder(parentFolderId) {
-  const parent = DriveApp.getFolderById(parentFolderId);
-  const now = new Date();
-  const yearStr = now.getFullYear() + "년";
-  const monthStr = (now.getMonth() + 1) + "월";
-  
-  let yearFolder;
-  const yearFolders = parent.getFoldersByName(yearStr);
-  if (yearFolders.hasNext()) {
-    yearFolder = yearFolders.next();
-  } else {
-    yearFolder = parent.createFolder(yearStr);
-  }
-  
-  let monthFolder;
-  const monthFolders = yearFolder.getFoldersByName(monthStr);
-  if (monthFolders.hasNext()) {
-    monthFolder = monthFolders.next();
-  } else {
-    monthFolder = yearFolder.createFolder(monthStr);
-  }
-  
-  return monthFolder;
+function jsonResponse(value) {
+  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// --- 솔라피 문자 발송 v4 모듈 ---
-function sendSolapiSms(apiKey, apiSecret, sender, receiver, text) {
-  try {
-    const date = new Date().toISOString();
-    const salt = Utilities.getUuid().replace(/-/g, "");
-    const dataToSign = date + salt;
-    const signature = byteToHex(Utilities.computeHmacSignature(Utilities.MacAlgorithm.HMAC_SHA_256, dataToSign, apiSecret));
-    const authHeader = `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
-    
-    // 연락처 문자 포맷에서 '-' 문자 제거
-    const cleanReceiver = receiver.replace(/[^0-9]/g, "");
-
-    const payload = {
-      message: {
-        to: cleanReceiver,
-        from: sender,
-        text: text
-      }
-    };
-    
-    const options = {
-      method: "POST",
-      contentType: "application/json",
-      headers: {
-        "Authorization": authHeader
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    
-    const response = UrlFetchApp.fetch("https://api.solapi.com/messages/v4/send", options);
-    const resContent = response.getContentText();
-    console.log("Solapi Send Result: " + resContent);
-  } catch (err) {
-    console.error("Solapi SMS Send Error: " + err.toString());
-  }
+function errorResponse(error) {
+  Logger.log(error.stack || error);
+  return jsonResponse({ result: "error", message: error.message || String(error) });
 }
 
-// --- 슬랙 웹훅 전송 모듈 ---
-function sendSlackNotification(webhookUrl, message) {
-  try {
-    const payload = {
-      text: message
-    };
-    const options = {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    const res = UrlFetchApp.fetch(webhookUrl, options);
-    const code = res.getResponseCode();
-    if (code !== 200) {
-      throw new Error("Slack Error Code " + code + ": " + res.getContentText());
-    }
-  } catch (err) {
-    Logger.log("Slack Notification Send Error: " + err.toString());
-    throw err;
-  }
+function signatureFileName(name, birth) {
+  return `[서명] ${sanitizeFileName(name)}_${sanitizeFileName(birth)}.png`;
 }
 
-// byte 배열을 16진수 hex 스트링으로 변환
-function byteToHex(sig) {
-  let hex = "";
-  for (let i = 0; i < sig.length; i++) {
-    let byteVal = sig[i];
-    if (byteVal < 0) byteVal += 256;
-    let byteHex = byteVal.toString(16);
-    if (byteHex.length == 1) byteHex = "0" + byteHex;
-    hex += byteHex;
-  }
-  return hex;
+function sanitizeFileName(value) {
+  return String(value || "").replace(/[\\/:*?"<>|]/g, "_").trim();
 }
 
-// --- 재직자현황 시트에서 입사일 조회 엔진 ---
+function driveContentUrl(id) {
+  return "https://drive.google.com/uc?id=" + id;
+}
+
+function extractDriveFileId(value) {
+  const match = String(value || "").match(/(?:id=|\/d\/)([-\w]{20,})/);
+  return match ? match[1] : "";
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeDate(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, TIME_ZONE, "yyyy-MM-dd");
+  return String(value || "").trim();
+}
+
+function formatInputDate(value) {
+  if (!value) return "";
+  const parts = String(value).split("-");
+  return parts.length === 3 ? `${parts[0]}. ${parts[1]}. ${parts[2]}.` : String(value);
+}
+
+function byteToHex(bytes) {
+  return bytes.map(function (value) {
+    const byte = value < 0 ? value + 256 : value;
+    return ("0" + byte.toString(16)).slice(-2);
+  }).join("");
+}
+
 function getJoinDate(name, phone, birth) {
-  let targetPhone = phone;
-  
-  // 만약 phone이 없고 birth가 있다면 입사자(Onboarding) 시트에서 연락처 검색 시도 (퇴사자용)
-  if (!targetPhone && birth) {
-    targetPhone = findPhoneByNameAndBirth(name, birth);
-  }
-  
+  let targetPhone = phone || findPhoneByNameAndBirth(name, birth);
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName("재직자현황");
-    if (!sheet) {
-      Logger.log("'재직자현황' 시트를 찾을 수 없습니다.");
-      return "";
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    const cleanPhone = function(p) {
-      return String(p).replace(/[^0-9]/g, "");
-    };
-    
-    const targetNameClean = String(name).trim();
-    const targetPhoneClean = cleanPhone(targetPhone);
-    
-    // 1차 검색: 이름과 휴대폰 둘 다 매칭하는 경우
-    if (targetPhoneClean) {
-      for (let i = 2; i < data.length; i++) {
-        const rowName = String(data[i][5]).trim();
-        const rowPhone = cleanPhone(data[i][8]);
-        
-        if (rowName === targetNameClean && rowPhone === targetPhoneClean) {
-          return formatJoinDateValue(data[i][6]);
-        }
-      }
-    }
-    
-    // 2차 검색 (Fallback): 이름만 매칭하는 경우 (휴대폰이 없거나 매칭 실패 시, 이름이 고유할 때만 반환)
-    let matchedRows = [];
-    for (let i = 2; i < data.length; i++) {
-      const rowName = String(data[i][5]).trim();
-      if (rowName === targetNameClean) {
-        matchedRows.push(data[i]);
-      }
-    }
-    
-    if (matchedRows.length === 1) {
-      return formatJoinDateValue(matchedRows[0][6]);
-    } else if (matchedRows.length > 1) {
-      Logger.log("이름이 중복되는 재직자가 존재하여 입사일을 특정할 수 없습니다: " + targetNameClean);
-    }
-    
-  } catch (err) {
-    Logger.log("입사일 조회 에러: " + err.toString());
-  }
-  return "";
-}
-
-// 입사자(Onboarding) 시트에서 이름+생년월일 매칭으로 연락처 찾기 헬퍼
-function findPhoneByNameAndBirth(name, birth) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName("입사자(Onboarding)");
+    const sheet = getSpreadsheet().getSheetByName("재직자현황");
     if (!sheet) return "";
-    
-    const data = sheet.getDataRange().getValues();
-    const targetName = String(name).trim();
-    const targetBirth = String(birth).trim(); // yyyy-mm-dd
-    
-    for (let i = 1; i < data.length; i++) {
-      const rowName = String(data[i][1]).trim();
-      const rowBirthVal = data[i][4];
-      
-      let rowBirth = "";
-      if (rowBirthVal instanceof Date) {
-        rowBirth = Utilities.formatDate(rowBirthVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
-      } else {
-        rowBirth = String(rowBirthVal).trim();
-      }
-      
-      if (rowName === targetName && rowBirth === targetBirth) {
-        return String(data[i][5]).trim(); // 연락처 (F열)
-      }
+    const rows = sheet.getDataRange().getValues();
+    const cleanPhone = function (value) { return String(value || "").replace(/[^0-9]/g, ""); };
+    const matches = [];
+    for (let i = 2; i < rows.length; i++) {
+      if (String(rows[i][5]).trim() !== String(name).trim()) continue;
+      matches.push(rows[i]);
+      if (cleanPhone(targetPhone) && cleanPhone(rows[i][8]) === cleanPhone(targetPhone)) return formatJoinDateValue(rows[i][6]);
     }
-  } catch (e) {
-    Logger.log("입사자 시트에서 연락처 검색 실패: " + e.toString());
+    return matches.length === 1 ? formatJoinDateValue(matches[0][6]) : "";
+  } catch (error) {
+    Logger.log("입사일 조회 실패: " + error);
+    return "";
+  }
+}
+
+function findPhoneByNameAndBirth(name, birth) {
+  const sheet = getSpreadsheet().getSheetByName(ONBOARDING_SHEET);
+  if (!sheet) return "";
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]).trim() === String(name).trim() && normalizeDate(rows[i][4]) === String(birth).trim()) {
+      return String(rows[i][5] || "").trim();
+    }
   }
   return "";
 }
 
-// 입사일 날짜 형태 포맷 변환용 헬퍼 함수
-function formatJoinDateValue(val) {
-  if (val instanceof Date) {
-    return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy. MM. dd.");
-  }
-  if (val) {
-    const dateObj = new Date(val);
-    if (!isNaN(dateObj.getTime())) {
-      return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy. MM. dd.");
+function formatJoinDateValue(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, TIME_ZONE, "yyyy. MM. dd.");
+  return formatInputDate(value);
+}
+
+function loadOjtDataFromSheet() {
+  let ss;
+  try { ss = SpreadsheetApp.openById(OJT_SPREADSHEET_ID); }
+  catch (ignored) { ss = getSpreadsheet(); }
+
+  const result = { contacts: [], floors: [], tools: [], welfare: [] };
+  const combined = ss.getSheetByName("OJT");
+  if (combined) {
+    const rows = combined.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row[0] || row[1]) result.floors.push({ floor: String(row[0] || "").trim(), title: String(row[1] || "").trim(), desc: String(row[2] || "").trim() });
+      if (row[3]) result.tools.push({ name: String(row[3]).trim(), category: String(row[4] || "").trim(), url: String(row[5] || "").trim(), badge: String(row[6] || "").trim(), icon: String(row[7] || "ph-desktop").trim() });
+      if (row[8]) result.welfare.push({ title: String(row[8]).trim(), desc: String(row[9] || "").trim(), icon: String(row[10] || "ph-gift").trim(), color: String(row[11] || "blue").trim() });
+      if (row[12] || row[14]) result.contacts.push({ dept: String(row[12] || "").trim(), name: String(row[13] || "").trim(), ext: String(row[14] || "").trim(), role: String(row[12] || "").trim() });
     }
-    return String(val);
+    return result;
   }
-  return "";
+
+  loadOjtTab(ss, "OJT_내선", result.contacts, function (row) { return { dept: String(row[0] || ""), name: String(row[1] || ""), ext: String(row[2] || ""), role: String(row[3] || "") }; });
+  loadOjtTab(ss, "OJT_층별", result.floors, function (row) { return { floor: String(row[0] || ""), title: String(row[1] || ""), desc: String(row[2] || "") }; });
+  loadOjtTab(ss, "OJT_협업도구", result.tools, function (row) { return { name: String(row[0] || ""), category: String(row[1] || ""), url: String(row[2] || ""), badge: String(row[3] || ""), icon: String(row[4] || "ph-desktop") }; });
+  loadOjtTab(ss, "OJT_복리후생", result.welfare, function (row) { return { title: String(row[0] || ""), desc: String(row[1] || ""), icon: String(row[2] || "ph-gift"), color: String(row[3] || "blue") }; });
+  return result;
+}
+
+function loadOjtTab(ss, sheetName, target, mapper) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return;
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] || rows[i][1]) target.push(mapper(rows[i]));
+  }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import SignaturePad from './SignaturePad'
-import { submitDocumentDirectly } from '../services/googleBrowserService'
+import { sendSmsLink, submitDocument } from '../services/apiClient'
 
 const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   const params = new URLSearchParams(window.location.search)
@@ -80,18 +80,13 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
     const selfServiceUrl = `${window.location.origin}${window.location.pathname}?view=self-service&type=offboarding&name=${encodeURIComponent(empName)}&dept=${encodeURIComponent(empDept)}&job=${encodeURIComponent(empJob)}&birth=${encodeURIComponent(empBirth)}&resignDate=${encodeURIComponent(resignDate)}&resignReason=${encodeURIComponent(resignReason)}`
     
     try {
-      const response = await fetch(googleAppsScriptUrl, {
-        method: 'POST',
-        body: JSON.stringify({
+      const result = await sendSmsLink({
           action: 'sendSmsLink',
           name: empName,
           phone: phoneNum,
           type: 'offboarding',
           link: selfServiceUrl
-        }),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
       })
-      const result = await response.json()
       if (result.result === 'success') {
         alert('📋 퇴사 서류 작성을 위한 비대면 링크가 문자(SMS)로 발송되었습니다.')
       } else {
@@ -154,8 +149,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
     }
 
     try {
-      console.log('📤 [서류 제출 Direct] 페이로드:', payload)
-      const result = await submitDocumentDirectly(payload)
+      const result = await submitDocument(payload)
 
       if (result.result === 'success') {
         setResultUrls({

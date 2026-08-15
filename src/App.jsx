@@ -3,7 +3,7 @@ import OnboardingForm from './components/OnboardingForm'
 import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
 import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
-import { API_BASE_URL, GOOGLE_APPS_SCRIPT_URL } from './config/api'
+import { GOOGLE_APPS_SCRIPT_URL } from './config/api'
 
 const App = () => {
   const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
