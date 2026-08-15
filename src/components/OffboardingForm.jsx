@@ -24,7 +24,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   const [activeDoc, setActiveDoc] = useState('')
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [resultUrls, setResultUrls] = useState(null)
+  const [isSubmitted, setIsSubmitted] = useState(false)
 
   const docTemplates = {
     resignation: '1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk', // 사직서 (Docs ID)
@@ -152,10 +152,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
       const result = await submitDocument(payload)
 
       if (result.result === 'success') {
-        setResultUrls({
-          docUrl1: result.docUrl1,
-          docUrl2: result.docUrl2
-        })
+        setIsSubmitted(true)
       } else {
         alert('❌ 오류: ' + (result.message || '처리 중 에러 발생'))
       }
@@ -168,33 +165,9 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   }
 
 
-  const handleShare = async () => {
-    if (!resultUrls) return
-    const shareText = `네이처요양병원 퇴사 서류 작성이 완료되었습니다.\n아래 링크에서 확인해 주세요.\n\n사직원: ${resultUrls.docUrl1}\n정보보안서약서: ${resultUrls.docUrl2}`
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: '네이처요양병원 퇴사서류 완료',
-          text: shareText,
-          url: resultUrls.docUrl1
-        })
-      } catch (err) {
-        console.log('공유 취소 또는 오류:', err)
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareText)
-        alert('📋 작성 문서 링크가 클립보드에 복사되었습니다! 카카오톡이나 문자에 붙여넣어 공유하세요.')
-      } catch (err) {
-        alert('공유 기능을 지원하지 않는 브라우저입니다. 링크를 직접 복사하세요.')
-      }
-    }
-  }
-
   const allDocsViewed = viewedDocs.resignation && viewedDocs.securityOff
 
-  if (resultUrls) {
+  if (isSubmitted) {
     return (
       <article className="step-card visible" style={{ animation: 'fadeInSlideUp 0.6s ease' }}>
         <div style={{ textAlign: 'center', padding: '1rem 0' }}>
@@ -203,19 +176,10 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
           <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
             사직서 및 보안서약서 작성이 정상적으로 처리되었습니다.<br />
             그동안 네이처요양병원을 위해 힘써주셔서 진심으로 감사드립니다.<br />
-            아래 버튼을 눌러 제출한 문서를 모바일로 확인 및 공유할 수 있습니다.
+            제출 문서는 병원 내부 담당자만 확인할 수 있습니다.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '360px', margin: '0 auto' }}>
-            <a href={resultUrls.docUrl1} target="_blank" rel="noreferrer" className="btn-primary btn-outline" style={{ border: '1px solid #10B981', color: '#047857' }}>
-              <i className="ph-bold ph-file-pdf"></i> 사직원 확인 (PDF)
-            </a>
-            <a href={resultUrls.docUrl2} target="_blank" rel="noreferrer" className="btn-primary btn-outline" style={{ border: '1px solid #10B981', color: '#047857' }}>
-              <i className="ph-bold ph-file-pdf"></i> 보안서약서 확인 (PDF)
-            </a>
-            <button onClick={handleShare} className="btn-primary" style={{ background: 'linear-gradient(135deg, #10B981, #059669)', border: 'none', marginTop: '1rem' }}>
-              <i className="ph-bold ph-share-network"></i> 작성 문서 공유하기 📤
-            </button>
             <button onClick={() => window.location.reload()} className="btn-clear" style={{ marginTop: '1rem', alignSelf: 'center' }}>
               처음으로 돌아가기
             </button>

@@ -41,6 +41,7 @@ function initializeAllSheets() {
       ["SOLAPI_API_SECRET", "", "솔라피 API Secret"],
       ["SENDER_NUMBER", "", "솔라피 등록 발신번호"],
       ["SLACK_WEBHOOK_URL", "", "Slack Incoming Webhook URL"],
+      ["ENABLE_COMPLETION_SMS", "FALSE", "제출 완료 SMS 사용 여부(TRUE/FALSE)"],
       ["ON_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 입사 서류 작성이 완료되었습니다. {링크}", "입사 완료 문자"],
       ["OFF_SMS_TEMPLATE", "[네이처요양병원] {이름}님, 퇴사 서류 작성이 완료되었습니다. {링크}", "퇴사 완료 문자"]
     ];
@@ -161,8 +162,6 @@ function processSubmission(data) {
     return jsonResponse({
       result: "success",
       jobId: jobId,
-      docUrl1: documents[0].url,
-      docUrl2: documents[1].url,
       notificationStatus: notificationErrors.length ? "failed" : "success",
       notificationErrors: notificationErrors
     });
@@ -273,7 +272,7 @@ function sendCompletionNotifications(data, isOffboarding, documents, timestamp) 
   const phone = data.phone || findPhoneByNameAndBirth(data.name, data.birth);
   const template = config[isOffboarding ? "OFF_SMS_TEMPLATE" : "ON_SMS_TEMPLATE"] || "";
 
-  if (template && phone && config.SOLAPI_API_KEY && config.SOLAPI_API_SECRET && config.SENDER_NUMBER) {
+  if (config.ENABLE_COMPLETION_SMS === "TRUE" && template && phone && config.SOLAPI_API_KEY && config.SOLAPI_API_SECRET && config.SENDER_NUMBER) {
     const message = template.replace(/\{이름\}/g, data.name).replace(/\{링크\}/g, documents[0].url);
     try {
       withRetry(function () {
