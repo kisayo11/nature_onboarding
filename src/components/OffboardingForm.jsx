@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import SignaturePad from './SignaturePad'
+import SubmissionProgress from './SubmissionProgress'
 import { sendSmsLink, submitDocument } from '../services/apiClient'
 
 const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
@@ -191,6 +192,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
 
   return (
     <article className="step-card visible">
+      {isSubmitting ? <SubmissionProgress /> : null}
       <div className="step-header">
         <div className="step-badge"><i className="ph-bold ph-file-text"></i></div>
         <div className="step-title-wrapper">
@@ -430,7 +432,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
                       opacity: (isSubmitting || !signature) ? 0.7 : 1
                     }}
                   >
-                    <i className="ph-bold ph-paper-plane-tilt"></i> {isSubmitting ? '서류 및 PDF 생성 중...' : '서명 제출 완료'}
+                    <i className={isSubmitting ? 'ph-bold ph-circle-notch' : 'ph-bold ph-paper-plane-tilt'}></i> {isSubmitting ? '제출 처리 중...' : '서명 제출 완료'}
                   </button>
                 )}
               </div>
