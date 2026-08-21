@@ -36,13 +36,13 @@ const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) =
 
   // 이름과 생년월일이 바뀔 때 저장된 서명을 조회함
   useEffect(() => {
-    if (name.trim() && birth.trim() && birth.length === 10) {
+    if (googleAppsScriptUrl && name.trim() && birth.trim() && (birth.length === 10 || birth.length === 6)) {
       fetchExistingSignature()
     } else {
       setIsLoaded(false)
       clearCanvas()
     }
-  }, [name, birth])
+  }, [name, birth, googleAppsScriptUrl])
 
   const fetchExistingSignature = async () => {
     setIsLoading(true)

@@ -38,3 +38,7 @@ export function saveSignature(data) {
 export function sendSmsLink(data) {
   return request(data)
 }
+
+export function submitRegistration(data) {
+  return request({ action: 'registerEmployee', ...data })
+}

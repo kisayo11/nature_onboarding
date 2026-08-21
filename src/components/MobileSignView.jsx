@@ -12,7 +12,9 @@ const MobileSignView = ({ googleAppsScriptUrl }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDone, setIsDone] = useState(false)
 
-  const docTemplates = type === 'onboarding' 
+  const docTemplates = type === 'register'
+    ? { consent: '1t9FK54inmCx6RLAMxnvvwOVEG8O9MB6DZkSS-KVRNOI' }
+    : type === 'onboarding'
     ? {
         training: '1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU', // 안전보건교육
         privacy: '13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk'   // 개인정보서약

@@ -2,10 +2,13 @@
 
 const SPREADSHEET_ID = "1Ed3IXDyNIICR2bLHJX_RbIrVPjSQBhuS5mHoFvR5obY";
 const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg";
+const REGISTRATION_SPREADSHEET_ID = "1YsuqFN43YXJCYjIlIkGsPAJPAcRTUGEtMWe2E-DUy_U";
+const REGISTRATION_SHEET = "설문지 응답 시트1";
 const DRIVE_ROOT_FOLDER_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
 
 const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
 const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
+const TEMPLATE_REGISTRATION_CONSENT_ID = "1t9FK54inmCx6RLAMxnvvwOVEG8O9MB6DZkSS-KVRNOI";
 const TEMPLATE_RESIGNATION_ID = "1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk";
 const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs";
 
@@ -56,6 +59,9 @@ function doGet(e) {
     if (params.action === "getOjtData") {
       return jsonResponse({ result: "success", data: loadOjtDataFromSheet() });
     }
+    if (params.action === "getRegistrationConsent") {
+      return jsonResponse({ result: "success", blocks: loadRegistrationConsentDocument() });
+    }
     if (params.action === "getSignature") {
       requireFields(params, ["name", "birth"]);
       const folder = getStorageFolders(false).signature;
@@ -77,6 +83,32 @@ function doGet(e) {
   }
 }
 
+function loadRegistrationConsentDocument() {
+  const body = DocumentApp.openById(TEMPLATE_REGISTRATION_CONSENT_ID).getBody();
+  const blocks = [];
+  for (let i = 0; i < body.getNumChildren(); i++) {
+    const child = body.getChild(i);
+    const type = child.getType();
+    if (type === DocumentApp.ElementType.PARAGRAPH) {
+      const text = child.asParagraph().getText().trim();
+      if (text) blocks.push({ type: "paragraph", text: text });
+    } else if (type === DocumentApp.ElementType.TABLE) {
+      const table = child.asTable();
+      const rows = [];
+      for (let rowIndex = 0; rowIndex < table.getNumRows(); rowIndex++) {
+        const row = table.getRow(rowIndex);
+        const cells = [];
+        for (let cellIndex = 0; cellIndex < row.getNumCells(); cellIndex++) {
+          cells.push(row.getCell(cellIndex).getText().trim());
+        }
+        rows.push(cells);
+      }
+      blocks.push({ type: "table", rows: rows });
+    }
+  }
+  return blocks;
+}
+
 function doPost(e) {
   let data;
   try {
@@ -88,9 +120,43 @@ function doPost(e) {
   try {
     if (data.action === "saveSignatureOnly") return saveSignatureOnly(data);
     if (data.action === "sendSmsLink") return sendSmsLink(data);
+    if (data.action === "registerEmployee") return registerEmployee(data);
     return processSubmission(data);
   } catch (error) {
     return errorResponse(error);
+  }
+}
+
+function registerEmployee(data) {
+  requireFields(data, ["privacyConsent", "name", "residentNumber", "phone", "email", "emergencyContact", "signature"]);
+  if (data.privacyConsent !== "동의함") throw new Error("개인정보 수집·이용 동의가 필요합니다.");
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
+  const createdFileIds = [];
+  try {
+    const timestamp = new Date();
+    const folders = getStorageFolders(false);
+    const signatureData = Object.assign({}, data, { birth: String(data.residentNumber).slice(0, 6) });
+    const signature = resolveSignature(signatureData, folders.signature);
+    const document = generateDocument(TEMPLATE_REGISTRATION_CONSENT_ID, "개인정보수집이용동의서", data, signature.id, timestamp, folders, createdFileIds);
+    const sheet = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+    if (!sheet) throw new Error("인사기록 응답 시트를 찾을 수 없습니다.");
+    if (!sheet.getRange(1, 15).getValue()) {
+      sheet.getRange(1, 15, 1, 3).setValues([["개인정보동의서_원본", "개인정보동의서_PDF", "서명이미지"]]);
+    }
+    sheet.appendRow([
+      timestamp, data.privacyConsent, data.name, data.department || "", data.englishName || "",
+      data.residentNumber, data.address || "", data.phone, data.email, data.emergencyContact,
+      data.education || "", data.career || "", data.license || "", data.opinion || "",
+      document.docUrl, document.url, signature.url
+    ]);
+    return jsonResponse({ result: "success" });
+  } catch (error) {
+    trashFiles(createdFileIds);
+    throw error;
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -203,7 +269,8 @@ function saveSignature(name, birth, dataUrl, folder) {
 
 function generateDocument(templateId, label, data, signatureId, timestamp, folders, createdFileIds) {
   const dateText = Utilities.formatDate(timestamp, TIME_ZONE, "yyyy. MM. dd.");
-  const fileName = `${sanitizeFileName(data.name)}_${sanitizeFileName(data.dept)}_${label}_${dateText}`;
+  const department = data.dept || data.department || "";
+  const fileName = `${sanitizeFileName(data.name)}_${sanitizeFileName(department)}_${label}_${dateText}`;
   const docFile = DriveApp.getFileById(templateId).makeCopy(fileName, folders.original);
   createdFileIds.push(docFile.getId());
 
@@ -211,9 +278,10 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
   const body = doc.getBody();
   const replacements = {
     "{{이름}}": data.name,
+    "{{ 이름 }}": data.name,
     "{{성명}}": data.name,
-    "{{소속}}": data.dept,
-    "{{부서}}": data.dept,
+    "{{소속}}": department,
+    "{{부서}}": department,
     "{{직종}}": data.job,
     "{{직위}}": data.job,
     "{{생년월일}}": formatInputDate(data.birth),
@@ -228,6 +296,9 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
   Object.keys(replacements).forEach(function (tag) {
     body.replaceText(escapeRegExp(tag), String(replacements[tag]));
   });
+  if (data.privacyConsent === "동의함") {
+    body.replaceText(escapeRegExp("□동의함 □동의하지 않음"), "■동의함 □동의하지 않음");
+  }
 
   const signatureLocation = body.findText(escapeRegExp("{{서명}}"));
   if (!signatureLocation) {
@@ -242,7 +313,7 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
 
   const pdfFile = folders.pdf.createFile(docFile.getAs(MimeType.PDF)).setName(fileName + ".pdf");
   createdFileIds.push(pdfFile.getId());
-  return { docId: docFile.getId(), pdfId: pdfFile.getId(), url: pdfFile.getUrl() };
+  return { docId: docFile.getId(), pdfId: pdfFile.getId(), docUrl: docFile.getUrl(), url: pdfFile.getUrl() };
 }
 
 function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, timestamp) {

@@ -3,11 +3,12 @@ import OnboardingForm from './components/OnboardingForm'
 import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
 import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
+import RegistrationForm from './components/RegistrationForm'
 import { GOOGLE_APPS_SCRIPT_URL } from './config/api'
 
 const App = () => {
   const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
-  const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service'
+  const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service', 'register'
   const [isOjtOpen, setIsOjtOpen] = useState(false)
   const googleAppsScriptUrl = GOOGLE_APPS_SCRIPT_URL
 
@@ -23,6 +24,8 @@ const App = () => {
       setView('mobile-sign')
     } else if (viewParam === 'self-service') {
       setView('self-service')
+    } else if (viewParam === 'register') {
+      setView('register')
     } else {
       setView('admin')
     }
@@ -41,6 +44,10 @@ const App = () => {
 
   if (view === 'mobile-sign') {
     return <MobileSignView googleAppsScriptUrl={googleAppsScriptUrl} />
+  }
+
+  if (view === 'register') {
+    return <RegistrationForm googleAppsScriptUrl={googleAppsScriptUrl} />
   }
 
   if (view === 'self-service') {
@@ -109,10 +116,10 @@ const App = () => {
                   <li><i className="ph-fill ph-file-text"></i> 정확한 정보로 기입 후 마지막 페이지에서 '제출'을 꼭 눌러주세요.</li>
                 </ul>
                 <div className="action-group">
-                  <a href="https://docs.google.com/forms/d/1CQP7AZbP8TzB4kX02NGY3OPBalbGXKY-792qvoCoe7U/preview" target="_blank" rel="noreferrer" className="btn-primary">
-                    <i className="ph-bold ph-pencil-simple"></i> 구글 인사기록 폼 열기
+                  <a href="?view=register" className="btn-primary">
+                    <i className="ph-bold ph-pencil-simple"></i> 인사기록카드 작성
                   </a>
-                  <span className="url-hint">https://docs.google.com/forms/d/...</span>
+                  <span className="url-hint">웹에서 바로 작성할 수 있습니다.</span>
                 </div>
               </div>
             </article>
