@@ -137,21 +137,45 @@ function registerEmployee(data) {
   try {
     const timestamp = new Date();
     const folders = getStorageFolders(false);
-    const signatureData = Object.assign({}, data, { birth: String(data.residentNumber).slice(0, 6) });
+    const birthKey = String(data.residentNumber || data.birth || "").replace(/[^0-9]/g, "").slice(0, 6);
+    data.birth = data.birth || birthKey;
+    data.dept = data.dept || data.department || "";
+    data.job = data.job || "";
+    data.docType = data.docType || "신규안전+개인정보";
+
+    const signatureData = Object.assign({}, data, { birth: birthKey });
     const signature = resolveSignature(signatureData, folders.signature);
-    const document = generateDocument(TEMPLATE_REGISTRATION_CONSENT_ID, "개인정보수집이용동의서", data, signature.id, timestamp, folders, createdFileIds);
-    const sheet = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
-    if (!sheet) throw new Error("인사기록 응답 시트를 찾을 수 없습니다.");
-    if (!sheet.getRange(1, 15).getValue()) {
-      sheet.getRange(1, 15, 1, 3).setValues([["개인정보동의서_원본", "개인정보동의서_PDF", "서명이미지"]]);
+
+    // 1회 서명으로 3대 입사 서류 생성
+    const docConsent = generateDocument(TEMPLATE_REGISTRATION_CONSENT_ID, "개인정보수집이용동의서", data, signature.id, timestamp, folders, createdFileIds);
+    const docSafety = generateDocument(TEMPLATE_SAFETY_ID, "안전보건교육", data, signature.id, timestamp, folders, createdFileIds);
+    const docPrivacy = generateDocument(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", data, signature.id, timestamp, folders, createdFileIds);
+
+    // 시트 1: 인사기록 응답 시트 (설문지 응답 시트1)
+    const regSheet = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+    if (!regSheet) throw new Error("인사기록 응답 시트를 찾을 수 없습니다.");
+    if (!regSheet.getRange(1, 15).getValue()) {
+      regSheet.getRange(1, 15, 1, 3).setValues([["개인정보동의서_원본", "개인정보동의서_PDF", "서명이미지"]]);
     }
-    sheet.appendRow([
+    regSheet.appendRow([
       timestamp, data.privacyConsent, data.name, data.department || "", data.englishName || "",
       data.residentNumber, data.address || "", data.phone, data.email, data.emergencyContact,
       data.education || "", data.career || "", data.license || "", data.opinion || "",
-      document.docUrl, document.url, signature.url
+      docConsent.docUrl, docConsent.url, signature.url
     ]);
-    return jsonResponse({ result: "success" });
+
+    // 시트 2: 입사자 온보딩 관리 시트 (입사자(Onboarding))
+    upsertSubmission(data, false, signature.url, docSafety.url, docPrivacy.url, timestamp);
+
+    // 알림 발송 (Slack / Solapi SMS)
+    sendCompletionNotifications(data, false, [docSafety, docPrivacy, docConsent], timestamp);
+
+    return jsonResponse({
+      result: "success",
+      consentUrl: docConsent.url,
+      safetyUrl: docSafety.url,
+      privacyUrl: docPrivacy.url
+    });
   } catch (error) {
     trashFiles(createdFileIds);
     throw error;

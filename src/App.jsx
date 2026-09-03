@@ -62,7 +62,7 @@ const App = () => {
         </header>
         <main style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
           {mode === 'onboarding' ? (
-            <OnboardingForm googleAppsScriptUrl={googleAppsScriptUrl} selfService={true} />
+            <RegistrationForm googleAppsScriptUrl={googleAppsScriptUrl} />
           ) : (
             <OffboardingForm googleAppsScriptUrl={googleAppsScriptUrl} selfService={true} />
           )}
@@ -101,25 +101,25 @@ const App = () => {
             {/* Top Fixed OJT Section */}
             <OjtGuideSection googleAppsScriptUrl={googleAppsScriptUrl} />
 
-            {/* Step 1: 인사기록 */}
+            {/* Step 1: 인사기록카드 및 입사서약서 작성 */}
             <article className="step-card visible">
               <div className="step-header">
                 <div className="step-badge">1</div>
                 <div className="step-title-wrapper">
-                  <h2>인사기록카드 폼 작성</h2>
-                  <p className="step-desc">급여 지급 및 4대 보험 신고를 위한 기초 정보</p>
+                  <h2>인사기록카드 및 입사서약서 작성</h2>
+                  <p className="step-desc">기초 인사정보 등록 + 3대 필수 서약·교육 확인 및 1회 통합 전자서명</p>
                 </div>
               </div>
               <div className="step-body">
                 <ul className="check-list">
-                  <li><i className="ph-fill ph-clock"></i> <strong>소요 시간:</strong> 약 5~10분 내외</li>
-                  <li><i className="ph-fill ph-file-text"></i> 정확한 정보로 기입 후 마지막 페이지에서 '제출'을 꼭 눌러주세요.</li>
+                  <li><i className="ph-fill ph-clock"></i> <strong>소요 시간:</strong> 약 5~10분 내외 (단 1회 작성으로 종결)</li>
+                  <li><i className="ph-fill ph-file-text"></i> 개인정보 수집·이용 동의서, 안전보건교육, 개인정보서약서를 한 번에 서명합니다.</li>
                 </ul>
                 <div className="action-group">
                   <a href="?view=register" className="btn-primary">
-                    <i className="ph-bold ph-pencil-simple"></i> 인사기록카드 작성
+                    <i className="ph-bold ph-pencil-simple"></i> 인사기록카드 및 입사서약 작성
                   </a>
-                  <span className="url-hint">웹에서 바로 작성할 수 있습니다.</span>
+                  <span className="url-hint">웹에서 바로 작성 및 서명할 수 있습니다.</span>
                 </div>
               </div>
             </article>
@@ -187,13 +187,10 @@ const App = () => {
               </div>
             </article>
 
-            {/* Step 3: 전자서명 (Onboarding Form) */}
-            <OnboardingForm googleAppsScriptUrl={googleAppsScriptUrl} />
-
-            {/* Step 4: 당일 준비 */}
+            {/* Step 3: 당일 준비 */}
             <article className="step-card optional visible">
               <div className="step-header">
-                <div className="step-badge">4</div>
+                <div className="step-badge">3</div>
                 <div className="step-title-wrapper">
                   <h2>[출근 준비] 실물 서류 및 인프라</h2>
                   <p className="step-desc">첫 출근 시 총무팀/원무과 제출 사항</p>
@@ -212,10 +209,10 @@ const App = () => {
               </div>
             </article>
 
-            {/* Step 5: 가이드 */}
+            {/* Step 4: 신규직원 OJT & 병원생활 가이드 */}
             <article className="step-card optional visible">
               <div className="step-header">
-                <div className="step-badge">5</div>
+                <div className="step-badge">4</div>
                 <div className="step-title-wrapper">
                   <h2>신규직원 OJT & 병원생활 가이드</h2>
                   <p className="step-desc">부서별 내선번호, 층별 주요 시설, 그룹웨어 접속 및 복지 혜택</p>
