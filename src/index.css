@@ -1621,4 +1621,245 @@ body {
     padding-top: 1rem;
 }
 
+/* ==========================================================================
+   Multi-Step Wizard & Responsive Typography System (Mobile & Web)
+   ========================================================================== */
 
+/* 1. Step Progress Bar (상단 진행 단계 표시기) */
+.wizard-progress-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    max-width: 680px;
+    margin: 0 auto 2rem auto;
+    padding: 0 1rem;
+}
+
+.wizard-progress-bar::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 40px;
+    right: 40px;
+    height: 3px;
+    background: #E2E8F0;
+    z-index: 1;
+}
+
+.wizard-step-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    flex: 1;
+    text-align: center;
+    transition: all 0.25s ease;
+}
+
+.wizard-step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 3px solid #CBD5E1;
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: clamp(0.9rem, 2vw, 1.05rem);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.wizard-step-label {
+    margin-top: 0.5rem;
+    font-size: clamp(0.78rem, 1.8vw, 0.92rem);
+    font-weight: 600;
+    color: #64748B;
+    transition: color 0.2s ease;
+}
+
+/* Active & Completed States */
+.wizard-step-item.active .wizard-step-circle {
+    border-color: #0F766E;
+    background: #0F766E;
+    color: #FFFFFF;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.2);
+}
+
+.wizard-step-item.active .wizard-step-label {
+    color: #0F766E;
+    font-weight: 800;
+}
+
+.wizard-step-item.completed .wizard-step-circle {
+    border-color: #10B981;
+    background: #10B981;
+    color: #FFFFFF;
+}
+
+.wizard-step-item.completed .wizard-step-label {
+    color: #047857;
+}
+
+/* 2. Wizard Navigation Group (이전 / 다음 버튼) */
+.wizard-nav-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.wizard-nav-group.split {
+    justify-content: space-between;
+}
+
+.wizard-next-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: clamp(0.75rem, 2vw, 0.95rem) clamp(1.2rem, 3vw, 2rem) !important;
+    font-size: clamp(0.95rem, 2vw, 1.08rem) !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #0F766E, #0D9488) !important;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.3) !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.wizard-next-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 118, 110, 0.4) !important;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: clamp(0.75rem, 2vw, 0.95rem) clamp(1rem, 2.5vw, 1.6rem);
+    font-size: clamp(0.9rem, 2vw, 1.02rem);
+    font-weight: 600;
+    color: #475569;
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: #E2E8F0;
+    color: #1E293B;
+}
+
+/* 3. Responsive Typography & Inputs (반응형 폰트 및 모바일 가독성 최적화) */
+.register-header h1 {
+    font-size: clamp(1.4rem, 4vw, 2.2rem) !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.02em !important;
+}
+
+.register-header p {
+    font-size: clamp(0.88rem, 2vw, 1.05rem) !important;
+    color: var(--text-muted);
+}
+
+.register-section h2 {
+    font-size: clamp(1.15rem, 2.5vw, 1.45rem) !important;
+    color: #0F766E;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+}
+
+.section-subguide {
+    font-size: clamp(0.84rem, 1.8vw, 0.95rem);
+    color: var(--text-muted);
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    font-size: clamp(0.88rem, 1.8vw, 0.96rem) !important;
+    font-weight: 600;
+    color: #334155;
+}
+
+/* iOS 사파리 줌 방지 및 모바일 터치 접근성을 위해 인풋 폰트 16px 이상 유지 */
+.form-group input,
+.form-group select,
+.form-group textarea {
+    font-size: clamp(16px, 2vw, 1.02rem) !important;
+    padding: clamp(0.65rem, 1.8vw, 0.85rem) 1rem !important;
+    border-radius: 10px;
+    border: 1.5px solid #CBD5E1;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #0F766E !important;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15) !important;
+    outline: none;
+}
+
+.consent-check span {
+    font-size: clamp(0.86rem, 1.8vw, 0.96rem) !important;
+    line-height: 1.5;
+}
+
+/* 4. Mobile Screen Specific Optimizations (모바일 전용 최적화) */
+@media (max-width: 640px) {
+    .wizard-progress-bar {
+        padding: 0 0.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .wizard-progress-bar::before {
+        top: 17px;
+        left: 20px;
+        right: 20px;
+    }
+
+    .wizard-step-circle {
+        width: 34px;
+        height: 34px;
+        font-size: 0.85rem;
+    }
+
+    .wizard-step-label {
+        font-size: 0.72rem;
+        margin-top: 0.35rem;
+    }
+
+    .wizard-nav-group {
+        flex-direction: column-reverse;
+        gap: 0.75rem;
+    }
+
+    .wizard-nav-group.split {
+        flex-direction: row;
+    }
+
+    .wizard-next-btn,
+    .btn-secondary,
+    .register-submit {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .wizard-nav-group.split .wizard-next-btn,
+    .wizard-nav-group.split .btn-secondary {
+        width: auto;
+        flex: 1;
+    }
+}
