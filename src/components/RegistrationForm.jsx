@@ -425,6 +425,21 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                       <h4 style={{ color: '#047857', marginBottom: '0.75rem' }}>
                         <i className="ph-fill ph-shield-check"></i> 안전보건교육 (문서 미리보기)
                       </h4>
+                      <div style={{
+                        padding: '0.85rem 1rem',
+                        marginBottom: '0.85rem',
+                        backgroundColor: '#ECFDF5',
+                        border: '1px solid #A7F3D0',
+                        borderRadius: '8px',
+                        color: '#065F46',
+                        fontSize: '0.88rem',
+                        lineHeight: '1.5'
+                      }}>
+                        <div style={{ fontWeight: '700', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <i className="ph-fill ph-info"></i> 신규 입사자 교육 안내
+                        </div>
+                        본 병원은 법정의무교육 및 신규직원 직무교육(산업안전보건교육 8시간, 배치전교육 15시간)을 전문 위탁교육기관인 <strong>(주)모두의교육그룹(모두의러닝)</strong>을 통해 진행하며, 수강 등록 및 이수 관리를 위해 최소한의 개인정보(성명, 연락처, 생년월일 등)가 위탁 처리됩니다.
+                      </div>
                       <div style={{ overflow: 'hidden', borderRadius: '8px', backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                         <iframe
                           src={`https://docs.google.com/document/d/${docTemplates.training}/preview`}
@@ -471,7 +486,7 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                       onChange={updateField}
                       required
                     />
-                    <span>[필수] 안전보건교육 내용을 숙지하였으며 성실히 이수할 것을 서약합니다.</span>
+                    <span>[필수] 안전보건교육 및 배치전교육 안내 내용을 숙지하였으며 성실히 이수할 것을 서약합니다.</span>
                   </label>
 
                   <label className="consent-check">
