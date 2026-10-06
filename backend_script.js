@@ -8,6 +8,8 @@ const DRIVE_ROOT_FOLDER_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
 const ACCESS_SPREADSHEET_ID = "1jA0_xY3LQJjpaIJcfp7o7IxcSEbmLdGHlkSviNvECD4";
 const ACCESS_TEMPLATE_ID = "1jc5Ez2votn4uItriaLUJrbq7vnJZK1mdxKNHwU6De2E";
 const EDUCATION_ROOT_FOLDER_ID = "1QboVZaNAR7altzSLrmCLCIgVaPzlsyyA";
+const EDUCATION_SPREADSHEET_ID = "1KCKWEIyMc9iOQkRVmHv2i5HchHjYMm5cNCZTyZga17E";
+const EDUCATION_SIGNATURE_SHEET = "서명_기록";
 const ACCESS_STATUS_COLUMN = 14; // N열
 const ACCESS_STATUS_HEADER = "서명 상태";
 
@@ -708,6 +710,10 @@ function normalizePersonName(value) {
 function normalizeDepartment(value) {
   const text = String(value || "").replace(/\s+/g, "").toLowerCase();
   if (!text) return "";
+  if (/감염관리/.test(text)) return "감염관리실";
+  if (/헤모필리아/.test(text)) return "헤모필리아센터";
+  if (/상담실/.test(text)) return "상담실";
+  if (/환자안전전담/.test(text)) return "환자안전전담";
   if (/간호부|간호과|병동|외래|수간호|\b[356]w\b/i.test(text)) return "간호부";
   if (/물리치료센터|작업치료센터|재활.*센터|재활치료/.test(text)) return "재활치료센터";
   if (/영양/.test(text)) return "영양팀";
@@ -1080,6 +1086,7 @@ function refreshAccessSignatureStatuses() {
 
 function buildAccessSignatureIndex() {
   const metadataById = loadSignatureMetadataById();
+  const employeeMetadataByName = buildAccessEmployeeMetadataByName();
   const candidates = [];
   const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
   const signatureRoots = [];
@@ -1088,31 +1095,34 @@ function buildAccessSignatureIndex() {
   signatureRoots.push(DriveApp.getFolderById(EDUCATION_ROOT_FOLDER_ID));
 
   signatureRoots.forEach(function (folder) {
-    collectSignatureImages(folder, candidates, metadataById, 0);
+    collectSignatureImages(folder, candidates, metadataById, employeeMetadataByName, 0);
   });
   return candidates;
 }
 
-function collectSignatureImages(folder, candidates, metadataById, depth) {
+function collectSignatureImages(folder, candidates, metadataById, employeeMetadataByName, depth) {
   if (depth > 8) return;
   const files = folder.getFiles();
   while (files.hasNext()) {
     const file = files.next();
     if (file.getMimeType().indexOf("image/") !== 0 || file.getName().indexOf("서명") === -1) continue;
     const metadata = metadataById[file.getId()] || {};
+    const employeeMetadata = inferEmployeeMetadataFromSignatureName(file.getName(), employeeMetadataByName);
     candidates.push({
       id: file.getId(),
       file: file,
       title: file.getName(),
       normalizedTitle: normalizePersonName(file.getName()),
-      name: metadata.name || "",
-      dept: metadata.dept || inferDepartmentFromSignatureName(file.getName()),
-      birthKey: metadata.birthKey || extractBirthKeyFromSignatureName(file.getName()),
+      name: metadata.name || employeeMetadata.name || "",
+      dept: metadata.dept || inferDepartmentFromSignatureName(file.getName()) || employeeMetadata.dept,
+      birthKey: metadata.birthKey || employeeMetadata.birthKey || extractBirthKeyFromSignatureName(file.getName()),
       modified: file.getLastUpdated().getTime()
     });
   }
   const folders = folder.getFolders();
-  while (folders.hasNext()) collectSignatureImages(folders.next(), candidates, metadataById, depth + 1);
+  while (folders.hasNext()) {
+    collectSignatureImages(folders.next(), candidates, metadataById, employeeMetadataByName, depth + 1);
+  }
 }
 
 function loadSignatureMetadataById() {
@@ -1139,12 +1149,72 @@ function loadSignatureMetadataById() {
       };
     }
   });
+
+  const educationSpreadsheet = SpreadsheetApp.openById(EDUCATION_SPREADSHEET_ID);
+  const educationSheet = educationSpreadsheet.getSheetByName(EDUCATION_SIGNATURE_SHEET);
+  if (educationSheet && educationSheet.getLastRow() >= 2) {
+    const rows = educationSheet.getDataRange().getDisplayValues();
+    for (let i = 1; i < rows.length; i++) {
+      const id = extractDriveFileId(rows[i][8]);
+      if (!id) continue;
+      metadata[id] = {
+        name: String(rows[i][7] || "").trim(),
+        dept: normalizeDepartment(rows[i][5]),
+        birthKey: ""
+      };
+    }
+  }
   return metadata;
+}
+
+function buildAccessEmployeeMetadataByName() {
+  const aggregated = {};
+  const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  spreadsheet.getSheets().forEach(function (sheet) {
+    if (!/^\d{4}$/.test(sheet.getName()) || sheet.getLastRow() < 2) return;
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getDisplayValues();
+    rows.forEach(function (row) {
+      const name = String(row[1] || "").trim();
+      const key = normalizePersonName(name);
+      if (!key) return;
+      if (!aggregated[key]) aggregated[key] = { names: [], depts: [], birthKeys: [] };
+      aggregated[key].names.push(name);
+      const dept = normalizeDepartment(row[7]);
+      const birthKey = String(row[10] || "").replace(/[^0-9]/g, "").slice(0, 6);
+      if (dept) aggregated[key].depts.push(dept);
+      if (birthKey.length === 6) aggregated[key].birthKeys.push(birthKey);
+    });
+  });
+
+  const result = {};
+  Object.keys(aggregated).forEach(function (key) {
+    const entry = aggregated[key];
+    const depts = uniqueValues(entry.depts);
+    const birthKeys = uniqueValues(entry.birthKeys);
+    result[key] = {
+      name: entry.names[0] || "",
+      dept: depts.length === 1 ? depts[0] : "",
+      birthKey: birthKeys.length === 1 ? birthKeys[0] : ""
+    };
+  });
+  return result;
+}
+
+function inferEmployeeMetadataFromSignatureName(fileName, employeeMetadataByName) {
+  const normalizedTitle = normalizePersonName(fileName);
+  const matches = Object.keys(employeeMetadataByName).filter(function (name) {
+    return name && normalizedTitle.indexOf(name) !== -1;
+  });
+  if (matches.length !== 1) return {};
+  return employeeMetadataByName[matches[0]];
 }
 
 function inferDepartmentFromSignatureName(fileName) {
   const normalized = normalizeDepartment(fileName);
-  const knownDepartments = ["간호부", "재활치료센터", "영양팀", "진료부", "원무과", "심사팀", "헤모필리아센터"];
+  const knownDepartments = [
+    "간호부", "재활치료센터", "영양팀", "진료부", "원무과", "심사팀",
+    "감염관리실", "헤모필리아센터", "상담실", "환자안전전담"
+  ];
   for (let i = 0; i < knownDepartments.length; i++) {
     if (normalized.indexOf(knownDepartments[i]) !== -1) return knownDepartments[i];
   }
@@ -1152,8 +1222,7 @@ function inferDepartmentFromSignatureName(fileName) {
 }
 
 function extractBirthKeyFromSignatureName(fileName) {
-  const fullDate = String(fileName).match(/(?:19|20)(\d{2})[-_. ]?(\d{2})[-_. ]?(\d{2})/);
-  if (fullDate) return fullDate[1] + fullDate[2] + fullDate[3];
+  // YYYY-MM-DD 형식은 서명일일 가능성이 높으므로 생년월일로 사용하지 않는다.
   const shortDate = String(fileName).match(/(?:^|[_\s])(\d{6})(?:[_\s.]|$)/);
   return shortDate ? shortDate[1] : "";
 }
