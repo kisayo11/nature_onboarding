@@ -42,3 +42,11 @@ export function sendSmsLink(data) {
 export function submitRegistration(data) {
   return request({ action: 'registerEmployee', ...data })
 }
+
+export function lookupAccessEmployee(data) {
+  return request(data)
+}
+
+export function submitAccessSignature(data) {
+  return request(data)
+}

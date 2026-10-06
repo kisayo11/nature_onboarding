@@ -19,4 +19,8 @@ GAS 운영 배포는 `Actions > Validate and deploy GAS > Run workflow`에서 �
 
 처음 한 번은 Apps Script 편집기에서 `initializeAllSheets`를 실행해 `처리로그`와 필요한 시트 헤더를 준비합니다. 기존 설정 값이 있는 시트는 덮어쓰지 않습니다.
 
+접근권한 요청서 자동화를 처음 배포한 뒤에는 Apps Script 편집기에서 `initializeAccessAutomation`도 한 번 실행합니다. 이 함수는 접근권한 관리대장의 연도별 시트 N열에 `서명 상태` 헤더를 만들고 기존 서명 상태를 최초로 갱신합니다. 연도별 통합 문서 생성과 상태 재점검은 기존 On/Off Boarding 관리 스프레드시트의 `🌟 네이처 자동화` 메뉴에서 실행합니다.
+
+접근권한 서명 등록 화면은 GitHub Pages URL에 `?view=access-signature`를 붙여 사용합니다. 직원 목록이나 생년월일은 화면에 노출되지 않으며, 이름과 부서가 정확히 일치할 때만 기존 서명 패드가 열립니다.
+
 서비스 계정 개인키는 이 구성에서 사용하지 않으며 GitHub 또는 GitHub Pages에 올리지 않습니다.
