@@ -31,8 +31,11 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   const reissueMenu = ui.createMenu("입사서류 재생성")
     .addItem("선택 행 개인정보서약서 재생성", "regenerateSelectedOnboardingPrivacy")
+    .addItem("선택 행 개인정보동의서 재생성", "regenerateSelectedOnboardingConsent")
     .addItem("날짜 누락 개인정보서약서 일괄 재생성", "regenerateMissingDateOnboardingPrivacy")
-    .addItem("선택 행 전체 입사서류 재생성", "regenerateSelectedOnboardingDocuments");
+    .addItem("선택 행 전체 입사서류 재생성", "regenerateSelectedOnboardingDocuments")
+    .addSeparator()
+    .addItem("기존 개인정보동의서 링크 동기화", "syncOnboardingConsentLinks");
 
   ui
     .createMenu("🌟 네이처 자동화")
@@ -48,9 +51,11 @@ function onOpen() {
 
 function initializeAllSheets() {
   const ss = getSpreadsheet();
-  ensureSheet(ss, ONBOARDING_SHEET, [
-    "타임스탬프", "이름", "부서", "직종", "생년월일", "연락처", "서류내역", "서명이미지", "결과_안전교육", "결과_개인정보"
+  const onboardingSheet = ensureSheet(ss, ONBOARDING_SHEET, [
+    "타임스탬프", "이름", "부서", "직종", "생년월일", "연락처", "서류내역", "서명이미지",
+    "결과_안전교육", "결과_개인정보", "결과_개인정보동의서"
   ]);
+  ensureOnboardingResultHeaders(onboardingSheet);
   ensureSheet(ss, OFFBOARDING_SHEET, [
     "타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "개인 IRP 계좌 사본 제출여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"
   ]);
@@ -101,8 +106,12 @@ function regenerateSelectedOnboardingPrivacy() {
   runSelectedOnboardingReissue(["privacy"], "관리자 선택 재생성");
 }
 
+function regenerateSelectedOnboardingConsent() {
+  runSelectedOnboardingReissue(["consent"], "관리자 선택 재생성");
+}
+
 function regenerateSelectedOnboardingDocuments() {
-  runSelectedOnboardingReissue(["safety", "privacy"], "관리자 선택 전체 재생성");
+  runSelectedOnboardingReissue(["safety", "privacy", "consent"], "관리자 선택 전체 재생성");
 }
 
 function runSelectedOnboardingReissue(documentTypes, reason) {
@@ -118,7 +127,7 @@ function runSelectedOnboardingReissue(documentTypes, reason) {
       throw new Error("재생성할 직원의 데이터 행 하나를 선택해 주세요.");
     }
     const record = readOnboardingRecord(sheet, range.getRow());
-    const labels = documentTypes.map(function (type) { return type === "privacy" ? "개인정보서약서" : "안전보건교육"; }).join(", ");
+    const labels = documentTypes.map(onboardingDocumentLabel).join(", ");
     const answer = ui.alert(
       "입사서류 재생성",
       `${record.name}님의 ${labels}를 최초 제출일 기준으로 재생성할까요?\n기존 서명은 재사용하고 알림은 발송하지 않습니다.`,
@@ -194,8 +203,84 @@ function regenerateMissingDateOnboardingPrivacy() {
   }
 }
 
+function syncOnboardingConsentLinks() {
+  const ui = SpreadsheetApp.getUi();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    ui.alert("동기화 실패", "다른 문서 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.", ui.ButtonSet.OK);
+    return;
+  }
+  try {
+    const onboardingSheet = getSpreadsheet().getSheetByName(ONBOARDING_SHEET);
+    if (!onboardingSheet || onboardingSheet.getLastRow() < 2) throw new Error("입사자 마스터 기록이 없습니다.");
+    ensureOnboardingResultHeaders(onboardingSheet);
+
+    const registrationSheet = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+    if (!registrationSheet || registrationSheet.getLastRow() < 2) throw new Error("인사등록 응답 기록이 없습니다.");
+    const consentIndex = buildRegistrationConsentIndex(registrationSheet);
+    const rows = onboardingSheet.getRange(2, 1, onboardingSheet.getLastRow() - 1, 11).getValues();
+    let updated = 0;
+    let alreadyLinked = 0;
+    let unmatched = 0;
+    const consentValues = rows.map(function (row) {
+      const currentUrl = String(row[10] || "").trim();
+      if (currentUrl) {
+        alreadyLinked++;
+        return [currentUrl];
+      }
+      const key = onboardingIdentityKey(row[1], row[4]);
+      const match = consentIndex[key];
+      if (!match) {
+        unmatched++;
+        return [""];
+      }
+      updated++;
+      return [match.url];
+    });
+    onboardingSheet.getRange(2, 11, consentValues.length, 1).setValues(consentValues);
+    SpreadsheetApp.flush();
+    ui.alert(
+      "개인정보동의서 링크 동기화 완료",
+      `신규 연결 ${updated}건 / 기존 연결 ${alreadyLinked}건 / 일치 자료 없음 ${unmatched}건`,
+      ui.ButtonSet.OK
+    );
+  } catch (error) {
+    ui.alert("동기화 실패", error.message || String(error), ui.ButtonSet.OK);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function buildRegistrationConsentIndex(sheet) {
+  const values = sheet.getDataRange().getValues();
+  const displayValues = sheet.getDataRange().getDisplayValues();
+  const result = {};
+  for (let i = 1; i < values.length; i++) {
+    const url = String(displayValues[i][15] || "").trim();
+    if (!url) continue;
+    const key = onboardingIdentityKey(displayValues[i][2], displayValues[i][5]);
+    if (!key) continue;
+    const timestamp = values[i][0] instanceof Date ? values[i][0].getTime() : new Date(values[i][0]).getTime();
+    if (!result[key] || timestamp > result[key].timestamp) result[key] = { url: url, timestamp: timestamp || 0 };
+  }
+  return result;
+}
+
+function onboardingIdentityKey(name, birthValue) {
+  const normalizedName = normalizePersonName(name);
+  const digits = String(birthValue instanceof Date ? Utilities.formatDate(birthValue, TIME_ZONE, "yyyyMMdd") : birthValue || "").replace(/[^0-9]/g, "");
+  let birthKey = digits.slice(0, 6);
+  if (digits.length >= 8 && /^(19|20)/.test(digits)) birthKey = digits.slice(2, 8);
+  return normalizedName && birthKey.length === 6 ? normalizedName + "|" + birthKey : "";
+}
+
+function ensureOnboardingResultHeaders(sheet) {
+  if (!sheet) return;
+  sheet.getRange(1, 9, 1, 3).setValues([["결과_안전교육", "결과_개인정보", "결과_개인정보동의서"]]);
+}
+
 function readOnboardingRecord(sheet, rowNumber) {
-  const values = sheet.getRange(rowNumber, 1, 1, 10).getValues()[0];
+  const values = sheet.getRange(rowNumber, 1, 1, 11).getValues()[0];
   const submittedAt = values[0] instanceof Date ? values[0] : new Date(values[0]);
   if (!values[1] || isNaN(submittedAt.getTime())) throw new Error(`${rowNumber}행의 이름 또는 최초 제출일이 올바르지 않습니다.`);
   const record = {
@@ -210,7 +295,8 @@ function readOnboardingRecord(sheet, rowNumber) {
     docType: String(values[6] || "신규안전+개인정보").trim(),
     signatureUrl: String(values[7] || "").trim(),
     previousSafetyUrl: String(values[8] || "").trim(),
-    previousPrivacyUrl: String(values[9] || "").trim()
+    previousPrivacyUrl: String(values[9] || "").trim(),
+    previousConsentUrl: String(values[10] || "").trim()
   };
   record.recordKey = [record.rowNumber, record.name, Utilities.formatDate(record.submittedAt, TIME_ZONE, "yyyyMMddHHmmss")].join("|");
   if (!record.dept || !record.job || !record.birth || !record.signatureUrl) {
@@ -235,7 +321,8 @@ function regenerateOnboardingRow(record, documentTypes, reason, version) {
     job: record.job,
     birth: record.birth,
     phone: record.phone,
-    docType: record.docType
+    docType: record.docType,
+    privacyConsent: "동의함"
   };
 
   try {
@@ -247,12 +334,18 @@ function regenerateOnboardingRow(record, documentTypes, reason, version) {
       generated.privacy = generateDocument(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", data, signatureId, record.submittedAt, folders, createdFileIds);
       validateRegeneratedDocument(generated.privacy.docId, record.submittedAt, "개인정보서약서");
     }
+    if (documentTypes.indexOf("consent") !== -1) {
+      generated.consent = generateDocument(TEMPLATE_REGISTRATION_CONSENT_ID, "개인정보수집이용동의서", data, signatureId, record.submittedAt, folders, createdFileIds);
+      validateRegeneratedDocument(generated.consent.docId, record.submittedAt, "개인정보 수집·이용 동의서");
+    }
 
     const newLinks = [[
       generated.safety ? generated.safety.url : record.previousSafetyUrl,
-      generated.privacy ? generated.privacy.url : record.previousPrivacyUrl
+      generated.privacy ? generated.privacy.url : record.previousPrivacyUrl,
+      generated.consent ? generated.consent.url : record.previousConsentUrl
     ]];
-    record.sheet.getRange(record.rowNumber, 9, 1, 2).setValues(newLinks);
+    ensureOnboardingResultHeaders(record.sheet);
+    record.sheet.getRange(record.rowNumber, 9, 1, 3).setValues(newLinks);
     SpreadsheetApp.flush();
     linksUpdated = true;
 
@@ -264,14 +357,24 @@ function regenerateOnboardingRow(record, documentTypes, reason, version) {
       const previousId = archiveSupersededDocument(record.previousPrivacyUrl, generated.privacy.docId, folders);
       safeAppendReissueLog(jobId, record, "개인정보서약서", version, reason, previousId, generated.privacy, "완료", "");
     }
+    if (generated.consent) {
+      const previousId = archiveSupersededDocument(record.previousConsentUrl, generated.consent.docId, folders);
+      safeAppendReissueLog(jobId, record, "개인정보 수집·이용 동의서", version, reason, previousId, generated.consent, "완료", "");
+    }
     return generated;
   } catch (error) {
     if (!linksUpdated) trashFiles(createdFileIds);
     documentTypes.forEach(function (type) {
-      safeAppendReissueLog(jobId, record, type === "privacy" ? "개인정보서약서" : "안전보건교육", version, reason, "", generated[type] || {}, "실패", error.message || String(error));
+      safeAppendReissueLog(jobId, record, onboardingDocumentLabel(type), version, reason, "", generated[type] || {}, "실패", error.message || String(error));
     });
     throw error;
   }
+}
+
+function onboardingDocumentLabel(type) {
+  if (type === "privacy") return "개인정보서약서";
+  if (type === "consent") return "개인정보 수집·이용 동의서";
+  return "안전보건교육";
 }
 
 function assertPrivacyTemplateReady(documentTypes) {
@@ -453,7 +556,7 @@ function registerEmployee(data) {
     ]);
 
     // 시트 2: 입사자 온보딩 관리 시트 (입사자(Onboarding))
-    upsertSubmission(data, false, signature.url, docSafety.url, docPrivacy.url, timestamp);
+    upsertSubmission(data, false, signature.url, docSafety.url, docPrivacy.url, timestamp, docConsent.url);
 
     // 알림 발송 (Slack / Solapi SMS)
     sendCompletionNotifications(data, false, [docSafety, docPrivacy, docConsent], timestamp);
@@ -868,9 +971,10 @@ function getNearbyTextAttributes(textElement, start, end) {
   return textElement.getAttributes(start);
 }
 
-function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, timestamp) {
+function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, timestamp, docUrl3) {
   const sheet = getSpreadsheet().getSheetByName(isOffboarding ? OFFBOARDING_SHEET : ONBOARDING_SHEET);
   if (!sheet) throw new Error("대상 기록 시트가 없습니다. 먼저 시트 초기화를 실행해 주세요.");
+  if (!isOffboarding) ensureOnboardingResultHeaders(sheet);
 
   const values = sheet.getDataRange().getValues();
   const keyDate = isOffboarding ? data.resignDate : data.birth;
@@ -884,7 +988,7 @@ function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, t
 
   const row = isOffboarding
     ? [timestamp, data.name, data.dept, data.job, data.resignDate, data.resignReason, data.checkCard, data.checkUniform, data.checkIrp, data.docType, signatureUrl, docUrl1, docUrl2]
-    : [timestamp, data.name, data.dept, data.job, data.birth, data.phone, data.docType, signatureUrl, docUrl1, docUrl2];
+    : [timestamp, data.name, data.dept, data.job, data.birth, data.phone, data.docType, signatureUrl, docUrl1, docUrl2, docUrl3 || ""];
   if (!rowNumber) rowNumber = Math.max(sheet.getLastRow() + 1, 2);
   sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
 }
