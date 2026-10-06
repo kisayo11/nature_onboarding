@@ -10,6 +10,7 @@ const initialForm = {
   securityConsent: false,
   name: '',
   job: '',
+  hireDate: '',
   department: '',
   customDepartment: '',
   englishName: '',
@@ -47,6 +48,7 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
   const [smsSending, setSmsSending] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [accessWarning, setAccessWarning] = useState('')
   const [activeDocTab, setActiveDocTab] = useState('consent') // 'consent', 'training', 'privacy'
   const [viewedDocs, setViewedDocs] = useState({ consent: true, training: false, privacy: false })
 
@@ -88,6 +90,11 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
     if (!formData.job.trim()) {
       alert('직종을 입력해 주세요.')
       document.getElementById('job')?.focus()
+      return false
+    }
+    if (!formData.hireDate) {
+      alert('입사일을 입력해 주세요.')
+      document.getElementById('hireDate')?.focus()
       return false
     }
     if (!formData.residentNumber.trim() || birthKey.length !== 6) {
@@ -183,7 +190,7 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
     }
     setIsSubmitting(true)
     try {
-      await submitRegistration({
+      const result = await submitRegistration({
         ...formData,
         department: formData.department === '기타' ? formData.customDepartment.trim() : formData.department,
         job: formData.job.trim(),
@@ -191,6 +198,10 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
         docType: '신규안전+개인정보',
         signature
       })
+      if (result.accessStatus === 'failed') {
+        setAccessWarning(result.accessMessage || '접근권한 대장 연결 실패')
+        alert(`입사 서류는 생성되었지만 접근권한 대장 연결에 실패했습니다. 담당자 확인이 필요합니다.\n${result.accessMessage || ''}`)
+      }
       setIsSubmitted(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
@@ -207,7 +218,12 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
         <section className="register-success">
           <i className="ph-fill ph-check-circle"></i>
           <h2>인사기록카드 및 입사서약이 제출되었습니다.</h2>
-          <p>작성해 주셔서 감사합니다. 모든 입사 전자서류 생성이 안전하게 완료되었습니다.<br />입사 안내에 따라 나머지 출근 준비 절차도 진행해 주세요.</p>
+          <p>
+            {accessWarning
+              ? '입사 전자서류 3종은 생성되었지만 접근권한 부여 요청은 담당자 확인이 필요합니다.'
+              : '작성해 주셔서 감사합니다. 입사 전자서류 3종과 접근권한 부여 요청 연결이 완료되었습니다.'}
+            <br />입사 안내에 따라 나머지 출근 준비 절차도 진행해 주세요.
+          </p>
           <button type="button" className="btn-primary" onClick={() => window.location.assign(window.location.pathname)}>
             입사 안내로 돌아가기
           </button>
@@ -303,6 +319,10 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                     <datalist id="jobList">
                       {jobs.map((j) => <option key={j} value={j} />)}
                     </datalist>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="hireDate">입사일 <span>*</span></label>
+                    <input id="hireDate" name="hireDate" type="date" value={formData.hireDate} onChange={updateField} required />
                   </div>
                   <div className="form-group">
                     <label htmlFor="englishName">영문성명</label>

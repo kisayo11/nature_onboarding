@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import OnboardingForm from './components/OnboardingForm'
 import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
 import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
@@ -8,7 +7,7 @@ import AccessSignatureView from './components/AccessSignatureView'
 import { GOOGLE_APPS_SCRIPT_URL } from './config/api'
 
 const App = () => {
-  const [mode, setMode] = useState('onboarding') // 'onboarding' or 'offboarding'
+  const [mode, setMode] = useState('onboarding') // 'onboarding', 'offboarding', 'access'
   const [view, setView] = useState('admin') // 'admin', 'mobile-sign', 'self-service', 'register'
   const [isOjtOpen, setIsOjtOpen] = useState(false)
   const googleAppsScriptUrl = GOOGLE_APPS_SCRIPT_URL
@@ -35,6 +34,8 @@ const App = () => {
 
     if (modeParam === 'offboarding' || hash === '#off' || hash === '#offboarding' || hash === '#퇴사자') {
       setMode('offboarding')
+    } else if (modeParam === 'access' || hash === '#access' || hash === '#재직자') {
+      setMode('access')
     } else {
       setMode('onboarding')
     }
@@ -42,7 +43,7 @@ const App = () => {
 
   const switchMode = (newMode) => {
     setMode(newMode)
-    window.location.hash = newMode === 'offboarding' ? 'off' : 'on'
+    window.location.hash = newMode === 'offboarding' ? 'off' : newMode === 'access' ? 'access' : 'on'
   }
 
   if (view === 'mobile-sign') {
@@ -84,20 +85,25 @@ const App = () => {
         <div className="hospital-logo-wrap">
           <i className="ph-fill ph-hospital"></i>
         </div>
-        <h1>{mode === 'onboarding' ? '입사를 환영합니다! 🎉' : '수고하셨습니다 🍀'}</h1>
+        <h1>{mode === 'onboarding' ? '입사를 환영합니다! 🎉' : mode === 'offboarding' ? '수고하셨습니다 🍀' : '재직자 전자서명'}</h1>
         <p>
           {mode === 'onboarding'
             ? '네이처요양병원 신규 가족을 위한 온보딩 허브입니다.'
-            : '네이처요양병원 퇴사 절차를 진행해 주세요. 그동안의 노고에 진심으로 감사드립니다.'}
+            : mode === 'offboarding'
+              ? '네이처요양병원 퇴사 절차를 진행해 주세요. 그동안의 노고에 진심으로 감사드립니다.'
+              : '이름과 부서를 확인한 뒤 접근권한 요청서용 전자서명을 등록해 주세요.'}
         </p>
 
         {/* Mode Selector */}
-        <div className="mode-selector" style={{ maxWidth: '320px', margin: '2rem auto 0', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+        <div className="mode-selector" style={{ maxWidth: '510px', margin: '2rem auto 0', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
           <div className={`mode-tab ${mode === 'onboarding' ? 'active' : ''}`} onClick={() => switchMode('onboarding')}>
             <i className="ph ph-user-plus" style={{ marginRight: '0.4rem' }}></i> 입사자
           </div>
           <div className={`mode-tab ${mode === 'offboarding' ? 'active' : ''}`} onClick={() => switchMode('offboarding')}>
             <i className="ph ph-user-minus" style={{ marginRight: '0.4rem' }}></i> 퇴사자
+          </div>
+          <div className={`mode-tab ${mode === 'access' ? 'active' : ''}`} onClick={() => switchMode('access')}>
+            <i className="ph ph-identification-card" style={{ marginRight: '0.4rem' }}></i> 재직자
           </div>
         </div>
       </header>
@@ -267,9 +273,11 @@ const App = () => {
               </div>
             </article>
           </>
-        ) : (
+        ) : mode === 'offboarding' ? (
           /* Offboarding (Only Form is shown for clean Offboarding flow) */
           <OffboardingForm googleAppsScriptUrl={googleAppsScriptUrl} />
+        ) : (
+          <AccessSignatureView googleAppsScriptUrl={googleAppsScriptUrl} />
         )}
       </main>
 

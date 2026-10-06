@@ -521,7 +521,7 @@ function doPost(e) {
 }
 
 function registerEmployee(data) {
-  requireFields(data, ["privacyConsent", "name", "residentNumber", "phone", "email", "emergencyContact", "signature"]);
+  requireFields(data, ["privacyConsent", "name", "residentNumber", "phone", "email", "emergencyContact", "hireDate", "signature"]);
   if (data.privacyConsent !== "동의함") throw new Error("개인정보 수집·이용 동의가 필요합니다.");
 
   const lock = LockService.getScriptLock();
@@ -559,6 +559,7 @@ function registerEmployee(data) {
 
     // 시트 2: 입사자 온보딩 관리 시트 (입사자(Onboarding))
     upsertSubmission(data, false, signature.url, docSafety.url, docPrivacy.url, timestamp, docConsent.url);
+    const accessSync = safeSyncAccessRequest(data, false, signature.url, timestamp);
 
     // 알림 발송 (Slack / Solapi SMS)
     sendCompletionNotifications(data, false, [docSafety, docPrivacy, docConsent], timestamp);
@@ -567,7 +568,9 @@ function registerEmployee(data) {
       result: "success",
       consentUrl: docConsent.url,
       safetyUrl: docSafety.url,
-      privacyUrl: docPrivacy.url
+      privacyUrl: docPrivacy.url,
+      accessStatus: accessSync.status,
+      accessMessage: accessSync.message || ""
     });
   } catch (error) {
     trashFiles(createdFileIds);
@@ -690,17 +693,164 @@ function recordAccessSignature(name, dept, birthKey, signatureUrl) {
     "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
   ]);
   const values = sheet.getDataRange().getDisplayValues();
+  const targetBirthKey = String(birthKey || "").replace(/[^0-9]/g, "").slice(0, 6);
   let rowNumber = 0;
   for (let i = 1; i < values.length; i++) {
     if (normalizePersonName(values[i][1]) === normalizePersonName(name) &&
-        normalizeDepartment(values[i][2]) === normalizeDepartment(dept)) {
+        normalizeDepartment(values[i][2]) === normalizeDepartment(dept) &&
+        (!targetBirthKey || String(values[i][3] || "").replace(/[^0-9]/g, "").slice(0, 6) === targetBirthKey)) {
       rowNumber = i + 1;
       break;
     }
   }
-  const row = [new Date(), name, normalizeDepartment(dept), birthKey, signatureUrl];
+  const row = [new Date(), name, normalizeDepartment(dept), targetBirthKey, signatureUrl];
   if (rowNumber) sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
   else sheet.appendRow(row);
+}
+
+function safeSyncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
+  try {
+    const result = syncAccessRequest(data, isOffboarding, signatureUrl, timestamp);
+    return { status: "success", message: "", year: result.year, rowNumber: result.rowNumber };
+  } catch (error) {
+    Logger.log("접근권한 대장 자동 연결 실패: " + error);
+    return { status: "failed", message: error.message || String(error) };
+  }
+}
+
+function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
+  const eventDate = isOffboarding ? data.resignDate : data.hireDate;
+  const dateParts = accessDateParts(eventDate);
+  if (!dateParts) throw new Error(isOffboarding ? "퇴사일을 확인할 수 없습니다." : "입사일을 확인할 수 없습니다.");
+
+  const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  const sheet = getOrCreateAccessYearSheet(spreadsheet, dateParts.year);
+  const lastRow = sheet.getLastRow();
+  const values = lastRow >= 2
+    ? sheet.getRange(2, 1, lastRow - 1, ACCESS_STATUS_COLUMN).getDisplayValues()
+    : [];
+  const targetName = normalizePersonName(data.name);
+  const targetDept = normalizeDepartment(data.dept || data.department);
+  const requestType = isOffboarding ? "접근권한 말소" : "접근권한 부여";
+  const reason = isOffboarding ? "퇴사" : "입사";
+  const dateKey = dateParts.key;
+  let rowNumber = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    if (normalizePersonName(row[1]) !== targetName || normalizeDepartment(row[7]) !== targetDept) continue;
+    if (String(row[2] || "").indexOf(isOffboarding ? "말소" : "부여") === -1) continue;
+    if (String(row[3] || "").indexOf(reason) === -1) continue;
+    const existingDate = accessDateParts(row[12] || (isOffboarding ? row[5] : row[4]));
+    if (existingDate && existingDate.key === dateKey) {
+      rowNumber = i + 2;
+      break;
+    }
+  }
+
+  const displayDate = `${dateParts.year}. ${dateParts.month}. ${dateParts.day}.`;
+  const department = canonicalAccessDepartment(data.dept || data.department);
+  const nextSequence = values.reduce(function (max, row) {
+    const value = Number(String(row[0] || "").replace(/[^0-9]/g, ""));
+    return isNaN(value) ? max : Math.max(max, value);
+  }, 0) + 1;
+  const newRow = [
+    nextSequence,
+    data.name,
+    requestType,
+    reason,
+    isOffboarding ? "" : displayDate,
+    isOffboarding ? displayDate : "",
+    data.job || "",
+    department,
+    data.position || "",
+    data.phone || findPhoneByNameAndBirth(data.name, data.birth),
+    data.residentNumber || String(data.birth || "").replace(/[^0-9]/g, "").slice(0, 6),
+    "",
+    displayDate,
+    "있음"
+  ];
+
+  if (!rowNumber) {
+    rowNumber = Math.max(lastRow + 1, 2);
+    const formatSourceRow = lastRow >= 2 ? lastRow : 2;
+    if (sheet.getMaxRows() < rowNumber) sheet.insertRowAfter(sheet.getMaxRows());
+    if (sheet.getMaxRows() >= formatSourceRow) {
+      sheet.getRange(formatSourceRow, 1, 1, ACCESS_STATUS_COLUMN)
+        .copyTo(sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+    sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).setValues([newRow]);
+  } else {
+    const current = sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).getDisplayValues()[0];
+    newRow.forEach(function (value, index) {
+      if (!String(current[index] || "").trim() || [2, 3, 13].indexOf(index) !== -1) {
+        sheet.getRange(rowNumber, index + 1).setValue(value);
+      }
+    });
+  }
+
+  recordAccessSignature(data.name, department, String(data.birth || data.residentNumber || "").replace(/[^0-9]/g, "").slice(0, 6), signatureUrl);
+  sheet.getRange(rowNumber, ACCESS_STATUS_COLUMN).setValue("있음");
+  SpreadsheetApp.flush();
+  return { year: dateParts.year, rowNumber: rowNumber };
+}
+
+function getOrCreateAccessYearSheet(spreadsheet, year) {
+  let sheet = spreadsheet.getSheetByName(String(year));
+  if (!sheet) {
+    const source = spreadsheet.getSheets().filter(function (candidate) {
+      return /^\d{4}$/.test(candidate.getName());
+    }).sort(function (a, b) {
+      return Number(b.getName()) - Number(a.getName());
+    })[0];
+
+    if (source) {
+      sheet = source.copyTo(spreadsheet).setName(String(year));
+      if (sheet.getMaxRows() > 1) {
+        sheet.getRange(2, 1, sheet.getMaxRows() - 1, sheet.getMaxColumns()).clearContent();
+      }
+    } else {
+      sheet = spreadsheet.insertSheet(String(year));
+      sheet.getRange(1, 1, 1, ACCESS_STATUS_COLUMN).setValues([[
+        "순번", "직원명", "접근권한 요청항목", "요청사유", "입사일", "퇴사일", "직종",
+        "부서", "직위", "휴대폰", "주민등록번호", "면허번호", "날짜", ACCESS_STATUS_HEADER
+      ]]);
+    }
+  }
+  sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function accessDateParts(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return {
+      year: Utilities.formatDate(value, TIME_ZONE, "yyyy"),
+      month: Number(Utilities.formatDate(value, TIME_ZONE, "M")),
+      day: Number(Utilities.formatDate(value, TIME_ZONE, "d")),
+      key: Utilities.formatDate(value, TIME_ZONE, "yyyyMMdd")
+    };
+  }
+  const match = String(value || "").match(/(20\d{2})\D*(\d{1,2})\D*(\d{1,2})/);
+  if (!match) return null;
+  return {
+    year: match[1],
+    month: Number(match[2]),
+    day: Number(match[3]),
+    key: match[1] + ("0" + match[2]).slice(-2) + ("0" + match[3]).slice(-2)
+  };
+}
+
+function canonicalAccessDepartment(value) {
+  const normalized = normalizeDepartment(value);
+  const known = [
+    "진료부", "영양팀", "간호부", "재활치료센터", "감염관리실", "헤모필리아센터",
+    "상담실", "환자안전전담", "원무과", "심사팀"
+  ];
+  for (let i = 0; i < known.length; i++) {
+    if (normalized === normalizeDepartment(known[i])) return known[i];
+  }
+  return String(value || "").trim();
 }
 
 function normalizePersonName(value) {
@@ -831,15 +981,20 @@ function processSubmission(data) {
       pdf2Id: documents[1].pdfId
     });
     upsertSubmission(data, isOffboarding, signature.url, documents[0].url, documents[1].url, startedAt);
+    const accessSync = safeSyncAccessRequest(data, isOffboarding, signature.url, startedAt);
 
     const notificationErrors = sendCompletionNotifications(data, isOffboarding, documents, startedAt);
-    finishProcessingLog(logRow, notificationErrors.length ? "완료(알림오류)" : "완료", notificationErrors.join(" | "));
+    const completionErrors = notificationErrors.slice();
+    if (accessSync.status === "failed") completionErrors.push("접근권한: " + accessSync.message);
+    finishProcessingLog(logRow, completionErrors.length ? "완료(일부오류)" : "완료", completionErrors.join(" | "));
 
     return jsonResponse({
       result: "success",
       jobId: jobId,
       notificationStatus: notificationErrors.length ? "failed" : "success",
-      notificationErrors: notificationErrors
+      notificationErrors: notificationErrors,
+      accessStatus: accessSync.status,
+      accessMessage: accessSync.message || ""
     });
   } catch (error) {
     trashFiles(createdFileIds);
@@ -900,7 +1055,7 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
     "{{사직일}}": formatInputDate(data.resignDate),
     "{{사유}}": data.resignReason || "",
     "{{사직사유}}": data.resignReason || "",
-    "{{입사일}}": getJoinDate(data.name, data.phone, data.birth)
+    "{{입사일}}": data.hireDate ? formatInputDate(data.hireDate) : getJoinDate(data.name, data.phone, data.birth)
   };
   replaceTextWithNearbyStyle(body, "{{날짜}}", dateText);
   Object.keys(replacements).forEach(function (tag) {
@@ -1237,7 +1392,10 @@ function selectAccessSignature(record, candidates) {
 
   const isDepartmentChange = record.requestType.indexOf("변경") !== -1 || record.reason.indexOf("부서변경") !== -1;
   const valid = nameMatches.filter(function (candidate) {
-    if (candidate.dept && normalizeDepartment(candidate.dept) === dept) return true;
+    if (candidate.dept && normalizeDepartment(candidate.dept) === dept) {
+      if (record.birthKey && candidate.birthKey) return candidate.birthKey === record.birthKey;
+      return true;
+    }
     return isDepartmentChange && record.birthKey && candidate.birthKey === record.birthKey;
   });
   if (!valid.length) return { status: "직원정보불일치", candidate: null };

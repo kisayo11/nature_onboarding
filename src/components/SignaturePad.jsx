@@ -2,7 +2,10 @@ import React, { useRef, useState, useEffect } from 'react'
 
 const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) => {
   const canvasRef = useRef(null)
-  const [isDrawing, setIsDrawing] = useState(false)
+  const drawingRef = useRef(false)
+  const lastPointRef = useRef(null)
+  const lastWidthRef = useRef(4.5)
+  const loadedImageRef = useRef(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -18,14 +21,13 @@ const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) =
       canvas.style.height = '200px'
       const ctx = canvas.getContext('2d')
       ctx.scale(ratio, ratio)
-      ctx.strokeStyle = '#0F766E'
-      ctx.lineWidth = 3
+      ctx.strokeStyle = '#111111'
+      ctx.lineWidth = 4.5
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
-      
-      // 만약 기존에 서명이 로드된 상태였다면 지우지 않도록 처리하거나, 리사이즈 시 초기화
-      if (!isLoaded) {
-        clearCanvas()
+
+      if (loadedImageRef.current) {
+        ctx.drawImage(loadedImageRef.current, 0, 0, rect.width, 200)
       }
     }
 
@@ -75,11 +77,12 @@ const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) =
     const img = new Image()
     img.src = base64Data
     img.onload = () => {
-      clearCanvas()
-      // 이미지 비율에 맞추어 캔버스에 그리기
+      loadedImageRef.current = img
+      clearCanvasPixels()
       const w = canvas.width / (window.devicePixelRatio || 1)
       const h = canvas.height / (window.devicePixelRatio || 1)
       ctx.drawImage(img, 0, 0, w, h)
+      setIsLoaded(true)
     }
   }
 
@@ -87,61 +90,84 @@ const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) =
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX)
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY)
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     }
   }
 
   const startDrawing = (e) => {
     e.preventDefault()
     if (isLoaded) {
-      // 로드된 서명이 있는 상태에서 새로 그리려고 하면 잠금 해제
+      loadedImageRef.current = null
       setIsLoaded(false)
-      clearCanvas()
+      clearCanvasPixels()
       onSignatureChange('')
     }
-    setIsDrawing(true)
     const canvas = canvasRef.current
     if (!canvas) return
+    canvas.setPointerCapture?.(e.pointerId)
+    drawingRef.current = true
     const ctx = canvas.getContext('2d')
     const pos = getPos(e)
+    lastPointRef.current = pos
+    lastWidthRef.current = e.pointerType === 'pen' && e.pressure > 0 ? 2.5 + (e.pressure * 4.5) : 4.5
     ctx.beginPath()
+    ctx.lineWidth = lastWidthRef.current
     ctx.moveTo(pos.x, pos.y)
     ctx.lineTo(pos.x, pos.y)
     ctx.stroke()
   }
 
   const draw = (e) => {
-    if (!isDrawing) return
+    if (!drawingRef.current || !lastPointRef.current) return
     e.preventDefault()
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     const pos = getPos(e)
+    const distance = Math.hypot(pos.x - lastPointRef.current.x, pos.y - lastPointRef.current.y)
+    const targetWidth = e.pointerType === 'pen' && e.pressure > 0
+      ? 2.5 + (e.pressure * 4.5)
+      : Math.max(2.4, 6.2 - (distance * 0.28))
+    const width = (lastWidthRef.current * 0.65) + (targetWidth * 0.35)
+    ctx.beginPath()
+    ctx.lineWidth = width
+    ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y)
     ctx.lineTo(pos.x, pos.y)
     ctx.stroke()
+    lastPointRef.current = pos
+    lastWidthRef.current = width
   }
 
-  const stopDrawing = () => {
-    if (!isDrawing) return
-    setIsDrawing(false)
+  const stopDrawing = (e) => {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    lastPointRef.current = null
     const canvas = canvasRef.current
     if (canvas) {
+      if (e?.pointerId !== undefined && canvas.hasPointerCapture?.(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId)
+      }
       const dataUrl = canvas.toDataURL('image/png')
       onSignatureChange(dataUrl)
     }
   }
 
-  const clearCanvas = () => {
+  const clearCanvasPixels = () => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     const w = canvas.width / (window.devicePixelRatio || 1)
     const h = canvas.height / (window.devicePixelRatio || 1)
     ctx.clearRect(0, 0, w, h)
+  }
+
+  const clearCanvas = () => {
+    loadedImageRef.current = null
+    drawingRef.current = false
+    lastPointRef.current = null
+    clearCanvasPixels()
     setIsLoaded(false)
     onSignatureChange('')
   }
@@ -212,15 +238,13 @@ const SignaturePad = ({ name, birth, googleAppsScriptUrl, onSignatureChange }) =
         style={{
           border: isLoaded ? '2px solid #10B981' : '2px dashed rgba(16, 185, 129, 0.4)',
           backgroundColor: isLoaded ? '#f0fdf4' : '#ffffff',
-          transition: 'all 0.3s ease'
+          transition: 'all 0.3s ease',
+          touchAction: 'none'
         }}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
+        onPointerDown={startDrawing}
+        onPointerMove={draw}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
       />
       
       {isLoaded && (

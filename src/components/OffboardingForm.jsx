@@ -26,6 +26,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [accessWarning, setAccessWarning] = useState('')
 
   const docTemplates = {
     resignation: '1RZL9NZKAOHarK2mlo0BI9dqljcN7jasJVZ-gtNUzSDk', // 사직서 (Docs ID)
@@ -153,6 +154,10 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
       const result = await submitDocument(payload)
 
       if (result.result === 'success') {
+        if (result.accessStatus === 'failed') {
+          setAccessWarning(result.accessMessage || '접근권한 대장 연결 실패')
+          alert(`퇴사 서류는 생성되었지만 접근권한 회수 연결에 실패했습니다. 담당자 확인이 필요합니다.\n${result.accessMessage || ''}`)
+        }
         setIsSubmitted(true)
       } else {
         alert('❌ 오류: ' + (result.message || '처리 중 에러 발생'))
@@ -175,7 +180,9 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
           <i className="ph-fill ph-check-circle" style={{ fontSize: '4rem', color: '#10B981', marginBottom: '1rem', display: 'block' }}></i>
           <h2 style={{ fontSize: '1.8rem', color: 'var(--text-main)', marginBottom: '0.5rem' }}>퇴사 처리 접수 완료! 🍀</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-            사직서 및 보안서약서 작성이 정상적으로 처리되었습니다.<br />
+            {accessWarning
+              ? '사직서·보안서약서 2종은 생성되었지만 접근권한 회수 요청은 담당자 확인이 필요합니다.'
+              : '사직서·보안서약서 2종과 접근권한 회수 요청 연결이 정상적으로 처리되었습니다.'}<br />
             그동안 네이처요양병원을 위해 힘써주셔서 진심으로 감사드립니다.<br />
             제출 문서는 병원 내부 담당자만 확인할 수 있습니다.
           </p>
