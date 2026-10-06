@@ -4,6 +4,7 @@ on:
   push:
     branches: ["main"]
     paths:
+      - ".github/workflows/deploy-gas.yml"
       - "backend_script.js"
       - "appsscript.json"
       - ".clasp.json"
