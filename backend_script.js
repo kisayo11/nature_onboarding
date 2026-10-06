@@ -22,12 +22,23 @@ const OFFBOARDING_SHEET = "퇴사자(Offboarding)";
 const ACCESS_SIGNATURE_SHEET = "접근권한 서명";
 const CONFIG_SHEET = "솔라피&슬랙 설정";
 const LOG_SHEET = "처리로그";
+const REISSUE_LOG_SHEET = "문서재생성로그";
 const TIME_ZONE = "Asia/Seoul";
+const PRIVACY_REISSUE_VERSION = "privacy-date-v2";
+const REISSUE_BATCH_SIZE = 20;
 
 function onOpen() {
-  SpreadsheetApp.getUi()
+  const ui = SpreadsheetApp.getUi();
+  const reissueMenu = ui.createMenu("입사서류 재생성")
+    .addItem("선택 행 개인정보서약서 재생성", "regenerateSelectedOnboardingPrivacy")
+    .addItem("날짜 누락 개인정보서약서 일괄 재생성", "regenerateMissingDateOnboardingPrivacy")
+    .addItem("선택 행 전체 입사서류 재생성", "regenerateSelectedOnboardingDocuments");
+
+  ui
     .createMenu("🌟 네이처 자동화")
     .addItem("시트 및 설정 초기화", "initializeAllSheets")
+    .addSeparator()
+    .addSubMenu(reissueMenu)
     .addSeparator()
     .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
     .addItem("2025년 접근권한 통합문서 생성", "generateAccessRequests2025")
@@ -47,6 +58,7 @@ function initializeAllSheets() {
     "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
   ]);
   ensureLogSheet(ss);
+  ensureReissueLogSheet(ss);
 
   let configSheet = ss.getSheetByName(CONFIG_SHEET);
   if (!configSheet) configSheet = ss.insertSheet(CONFIG_SHEET);
@@ -83,6 +95,248 @@ function generateAccessRequests2025() {
 
 function generateAccessRequests2026() {
   return generateAccessRequestArchive("2026");
+}
+
+function regenerateSelectedOnboardingPrivacy() {
+  runSelectedOnboardingReissue(["privacy"], "관리자 선택 재생성");
+}
+
+function regenerateSelectedOnboardingDocuments() {
+  runSelectedOnboardingReissue(["safety", "privacy"], "관리자 선택 전체 재생성");
+}
+
+function runSelectedOnboardingReissue(documentTypes, reason) {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    assertPrivacyTemplateReady(documentTypes);
+    const sheet = SpreadsheetApp.getActiveSheet();
+    if (!sheet || sheet.getName() !== ONBOARDING_SHEET) {
+      throw new Error(`'${ONBOARDING_SHEET}' 시트에서 대상 직원 행을 선택해 주세요.`);
+    }
+    const range = sheet.getActiveRange();
+    if (!range || range.getRow() < 2 || range.getNumRows() !== 1) {
+      throw new Error("재생성할 직원의 데이터 행 하나를 선택해 주세요.");
+    }
+    const record = readOnboardingRecord(sheet, range.getRow());
+    const labels = documentTypes.map(function (type) { return type === "privacy" ? "개인정보서약서" : "안전보건교육"; }).join(", ");
+    const answer = ui.alert(
+      "입사서류 재생성",
+      `${record.name}님의 ${labels}를 최초 제출일 기준으로 재생성할까요?\n기존 서명은 재사용하고 알림은 발송하지 않습니다.`,
+      ui.ButtonSet.YES_NO
+    );
+    if (answer !== ui.Button.YES) return;
+
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) throw new Error("다른 문서 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.");
+    try {
+      regenerateOnboardingRow(record, documentTypes, reason, "manual");
+    } finally {
+      lock.releaseLock();
+    }
+    ui.alert("재생성 완료", `${record.name}님의 ${labels} 링크가 새 문서로 교체되었습니다.`, ui.ButtonSet.OK);
+  } catch (error) {
+    ui.alert("재생성 실패", error.message || String(error), ui.ButtonSet.OK);
+  }
+}
+
+function regenerateMissingDateOnboardingPrivacy() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    assertPrivacyTemplateReady(["privacy"]);
+    const answer = ui.alert(
+      "개인정보서약서 날짜 보정",
+      `기존 개인정보서약서를 최초 제출일과 기존 서명으로 재생성합니다.\n한 번에 최대 ${REISSUE_BATCH_SIZE}건을 처리하며, 완료된 건은 다음 실행에서 자동으로 제외합니다. 계속할까요?`,
+      ui.ButtonSet.YES_NO
+    );
+    if (answer !== ui.Button.YES) return;
+
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) throw new Error("다른 문서 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.");
+    let completed = 0;
+    let failed = 0;
+    let remaining = 0;
+    try {
+      const sheet = getSpreadsheet().getSheetByName(ONBOARDING_SHEET);
+      if (!sheet || sheet.getLastRow() < 2) throw new Error("재생성할 입사자 기록이 없습니다.");
+      const completedKeys = loadCompletedReissueKeys("privacy", PRIVACY_REISSUE_VERSION);
+      for (let rowNumber = 2; rowNumber <= sheet.getLastRow(); rowNumber++) {
+        let record;
+        try {
+          record = readOnboardingRecord(sheet, rowNumber);
+        } catch (error) {
+          failed++;
+          continue;
+        }
+        if (!record.previousPrivacyUrl || completedKeys[record.recordKey]) continue;
+        if (completed >= REISSUE_BATCH_SIZE) {
+          remaining++;
+          continue;
+        }
+        try {
+          regenerateOnboardingRow(record, ["privacy"], "날짜 누락 일괄 보정", PRIVACY_REISSUE_VERSION);
+          completedKeys[record.recordKey] = true;
+          completed++;
+        } catch (error) {
+          failed++;
+        }
+      }
+    } finally {
+      lock.releaseLock();
+    }
+    ui.alert(
+      "날짜 보정 처리 결과",
+      `완료 ${completed}건 / 실패 또는 데이터 누락 ${failed}건 / 남은 대상 ${remaining}건` +
+        (remaining ? "\n남은 건은 같은 메뉴를 다시 실행하면 이어서 처리됩니다." : ""),
+      ui.ButtonSet.OK
+    );
+  } catch (error) {
+    ui.alert("일괄 재생성 실패", error.message || String(error), ui.ButtonSet.OK);
+  }
+}
+
+function readOnboardingRecord(sheet, rowNumber) {
+  const values = sheet.getRange(rowNumber, 1, 1, 10).getValues()[0];
+  const submittedAt = values[0] instanceof Date ? values[0] : new Date(values[0]);
+  if (!values[1] || isNaN(submittedAt.getTime())) throw new Error(`${rowNumber}행의 이름 또는 최초 제출일이 올바르지 않습니다.`);
+  const record = {
+    sheet: sheet,
+    rowNumber: rowNumber,
+    submittedAt: submittedAt,
+    name: String(values[1] || "").trim(),
+    dept: String(values[2] || "").trim(),
+    job: String(values[3] || "").trim(),
+    birth: normalizeDate(values[4]),
+    phone: String(values[5] || "").trim(),
+    docType: String(values[6] || "신규안전+개인정보").trim(),
+    signatureUrl: String(values[7] || "").trim(),
+    previousSafetyUrl: String(values[8] || "").trim(),
+    previousPrivacyUrl: String(values[9] || "").trim()
+  };
+  record.recordKey = [record.rowNumber, record.name, Utilities.formatDate(record.submittedAt, TIME_ZONE, "yyyyMMddHHmmss")].join("|");
+  if (!record.dept || !record.job || !record.birth || !record.signatureUrl) {
+    throw new Error(`${rowNumber}행의 부서, 직종, 생년월일 또는 서명 정보가 없습니다.`);
+  }
+  return record;
+}
+
+function regenerateOnboardingRow(record, documentTypes, reason, version) {
+  const signatureId = extractDriveFileId(record.signatureUrl);
+  if (!signatureId) throw new Error(`${record.name}님의 기존 서명 파일을 확인할 수 없습니다.`);
+  DriveApp.getFileById(signatureId).getBlob();
+
+  const folders = getStorageFolders(false, record.submittedAt);
+  const createdFileIds = [];
+  const generated = {};
+  const jobId = Utilities.getUuid();
+  let linksUpdated = false;
+  const data = {
+    name: record.name,
+    dept: record.dept,
+    job: record.job,
+    birth: record.birth,
+    phone: record.phone,
+    docType: record.docType
+  };
+
+  try {
+    if (documentTypes.indexOf("safety") !== -1) {
+      generated.safety = generateDocument(TEMPLATE_SAFETY_ID, "안전보건교육", data, signatureId, record.submittedAt, folders, createdFileIds);
+      validateRegeneratedDocument(generated.safety.docId, record.submittedAt, "안전보건교육");
+    }
+    if (documentTypes.indexOf("privacy") !== -1) {
+      generated.privacy = generateDocument(TEMPLATE_PRIVACY_ID, "개인정보서약_입사", data, signatureId, record.submittedAt, folders, createdFileIds);
+      validateRegeneratedDocument(generated.privacy.docId, record.submittedAt, "개인정보서약서");
+    }
+
+    const newLinks = [[
+      generated.safety ? generated.safety.url : record.previousSafetyUrl,
+      generated.privacy ? generated.privacy.url : record.previousPrivacyUrl
+    ]];
+    record.sheet.getRange(record.rowNumber, 9, 1, 2).setValues(newLinks);
+    SpreadsheetApp.flush();
+    linksUpdated = true;
+
+    if (generated.safety) {
+      const previousId = archiveSupersededDocument(record.previousSafetyUrl, generated.safety.docId, folders);
+      safeAppendReissueLog(jobId, record, "안전보건교육", version, reason, previousId, generated.safety, "완료", "");
+    }
+    if (generated.privacy) {
+      const previousId = archiveSupersededDocument(record.previousPrivacyUrl, generated.privacy.docId, folders);
+      safeAppendReissueLog(jobId, record, "개인정보서약서", version, reason, previousId, generated.privacy, "완료", "");
+    }
+    return generated;
+  } catch (error) {
+    if (!linksUpdated) trashFiles(createdFileIds);
+    documentTypes.forEach(function (type) {
+      safeAppendReissueLog(jobId, record, type === "privacy" ? "개인정보서약서" : "안전보건교육", version, reason, "", generated[type] || {}, "실패", error.message || String(error));
+    });
+    throw error;
+  }
+}
+
+function assertPrivacyTemplateReady(documentTypes) {
+  if (documentTypes.indexOf("privacy") === -1) return;
+  const text = DocumentApp.openById(TEMPLATE_PRIVACY_ID).getBody().getText();
+  if (text.indexOf("{{날짜}}") === -1) throw new Error("개인정보서약서 템플릿에서 {{날짜}} 태그를 찾을 수 없습니다.");
+}
+
+function validateRegeneratedDocument(documentId, submittedAt, label) {
+  const text = DocumentApp.openById(documentId).getBody().getText();
+  const expectedDate = Utilities.formatDate(submittedAt, TIME_ZONE, "yyyy. MM. dd.");
+  if (text.indexOf(expectedDate) === -1) throw new Error(`${label}에 최초 제출일이 정상적으로 입력되지 않았습니다.`);
+  if (/\{\{[^}]+\}\}/.test(text)) throw new Error(`${label}에 치환되지 않은 템플릿 태그가 남아 있습니다.`);
+}
+
+function archiveSupersededDocument(previousPdfUrl, newDocId, folders) {
+  const previousPdfId = extractDriveFileId(previousPdfUrl);
+  if (!previousPdfId) return "";
+  try {
+    const previousPdf = DriveApp.getFileById(previousPdfId);
+    const baseName = previousPdf.getName().replace(/\.pdf$/i, "");
+    previousPdf.moveTo(getOrCreateFolder(folders.pdf, "이전버전"));
+    const originals = folders.original.getFilesByName(baseName);
+    const originalArchive = getOrCreateFolder(folders.original, "이전버전");
+    while (originals.hasNext()) {
+      const file = originals.next();
+      if (file.getId() !== newDocId) file.moveTo(originalArchive);
+    }
+  } catch (error) {
+    Logger.log("이전 문서 보관 실패: " + error);
+  }
+  return previousPdfId;
+}
+
+function loadCompletedReissueKeys(documentType, version) {
+  const sheet = ensureReissueLogSheet(getSpreadsheet());
+  const result = {};
+  if (sheet.getLastRow() < 2) return result;
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).getDisplayValues();
+  rows.forEach(function (row) {
+    if (row[5] === "개인정보서약서" && documentType === "privacy" && row[6] === version && row[11] === "완료") result[row[3]] = true;
+  });
+  return result;
+}
+
+function appendReissueLog(jobId, record, documentType, version, reason, previousPdfId, generated, status, error) {
+  ensureReissueLogSheet(getSpreadsheet()).appendRow([
+    jobId, new Date(), record.rowNumber, record.recordKey, record.name, documentType, version, reason,
+    previousPdfId || "", generated.docId || "", generated.pdfId || "", status, error || ""
+  ]);
+}
+
+function safeAppendReissueLog(jobId, record, documentType, version, reason, previousPdfId, generated, status, error) {
+  try {
+    appendReissueLog(jobId, record, documentType, version, reason, previousPdfId, generated, status, error);
+  } catch (logError) {
+    Logger.log("문서 재생성 로그 기록 실패: " + logError);
+  }
+}
+
+function ensureReissueLogSheet(ss) {
+  return ensureSheet(ss, REISSUE_LOG_SHEET, [
+    "작업ID", "처리시각", "시트행", "원본키", "이름", "문서종류", "템플릿버전", "재생성사유",
+    "기존PDFID", "신규원본ID", "신규PDFID", "상태", "오류"
+  ]);
 }
 
 function doGet(e) {
@@ -919,9 +1173,10 @@ function withRetry(operation, attempts) {
   throw lastError;
 }
 
-function getStorageFolders(isOffboarding) {
+function getStorageFolders(isOffboarding, referenceDate) {
   const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
-  const year = Utilities.formatDate(new Date(), TIME_ZONE, "yyyy") + "년";
+  const folderDate = referenceDate instanceof Date && !isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+  const year = Utilities.formatDate(folderDate, TIME_ZONE, "yyyy") + "년";
   return {
     signature: getOrCreateFolder(getOrCreateFolder(root, "01_서명보관"), year),
     pdf: getOrCreateFolder(getOrCreateFolder(getOrCreateFolder(root, "02_서류보관"), year), isOffboarding ? "02_퇴사자서류" : "01_입사자서류"),
