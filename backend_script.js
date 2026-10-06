@@ -24,7 +24,7 @@ const CONFIG_SHEET = "솔라피&슬랙 설정";
 const LOG_SHEET = "처리로그";
 const REISSUE_LOG_SHEET = "문서재생성로그";
 const TIME_ZONE = "Asia/Seoul";
-const PRIVACY_REISSUE_VERSION = "privacy-date-v2";
+const PRIVACY_REISSUE_VERSION = "privacy-date-style-v3";
 const REISSUE_BATCH_SIZE = 20;
 
 function onOpen() {
@@ -791,9 +791,9 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
     "{{사직일}}": formatInputDate(data.resignDate),
     "{{사유}}": data.resignReason || "",
     "{{사직사유}}": data.resignReason || "",
-    "{{날짜}}": dateText,
     "{{입사일}}": getJoinDate(data.name, data.phone, data.birth)
   };
+  replaceTextWithNearbyStyle(body, "{{날짜}}", dateText);
   Object.keys(replacements).forEach(function (tag) {
     body.replaceText(escapeRegExp(tag), String(replacements[tag]));
   });
@@ -815,6 +815,57 @@ function generateDocument(templateId, label, data, signatureId, timestamp, folde
   const pdfFile = folders.pdf.createFile(docFile.getAs(MimeType.PDF)).setName(fileName + ".pdf");
   createdFileIds.push(pdfFile.getId());
   return { docId: docFile.getId(), pdfId: pdfFile.getId(), docUrl: docFile.getUrl(), url: pdfFile.getUrl() };
+}
+
+function replaceTextWithNearbyStyle(body, tag, replacement) {
+  const pattern = escapeRegExp(tag);
+  let location = body.findText(pattern);
+  while (location) {
+    const textElement = location.getElement().asText();
+    const start = location.getStartOffset();
+    const end = location.getEndOffsetInclusive();
+    const attributes = getNearbyTextAttributes(textElement, start, end);
+    textElement.deleteText(start, end);
+    textElement.insertText(start, String(replacement));
+    if (String(replacement).length && attributes) {
+      textElement.setAttributes(start, start + String(replacement).length - 1, attributes);
+    }
+    location = body.findText(pattern);
+  }
+}
+
+function getNearbyTextAttributes(textElement, start, end) {
+  const text = textElement.getText();
+  for (let i = start - 1; i >= 0; i--) {
+    if (!/\s/.test(text.charAt(i))) return textElement.getAttributes(i);
+  }
+  for (let i = end + 1; i < text.length; i++) {
+    if (!/\s/.test(text.charAt(i))) return textElement.getAttributes(i);
+  }
+
+  const parent = textElement.getParent();
+  if (parent && parent.getChildIndex && parent.getNumChildren) {
+    const childIndex = parent.getChildIndex(textElement);
+    for (let i = childIndex - 1; i >= 0; i--) {
+      const sibling = parent.getChild(i);
+      if (sibling.getType() !== DocumentApp.ElementType.TEXT) continue;
+      const siblingText = sibling.asText();
+      const value = siblingText.getText();
+      for (let offset = value.length - 1; offset >= 0; offset--) {
+        if (!/\s/.test(value.charAt(offset))) return siblingText.getAttributes(offset);
+      }
+    }
+    for (let i = childIndex + 1; i < parent.getNumChildren(); i++) {
+      const sibling = parent.getChild(i);
+      if (sibling.getType() !== DocumentApp.ElementType.TEXT) continue;
+      const siblingText = sibling.asText();
+      const value = siblingText.getText();
+      for (let offset = 0; offset < value.length; offset++) {
+        if (!/\s/.test(value.charAt(offset))) return siblingText.getAttributes(offset);
+      }
+    }
+  }
+  return textElement.getAttributes(start);
 }
 
 function upsertSubmission(data, isOffboarding, signatureUrl, docUrl1, docUrl2, timestamp) {
