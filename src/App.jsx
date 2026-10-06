@@ -4,6 +4,7 @@ import OffboardingForm from './components/OffboardingForm'
 import MobileSignView from './components/MobileSignView'
 import OjtGuideModal, { OjtGuideSection } from './components/OjtGuideModal'
 import RegistrationForm from './components/RegistrationForm'
+import AccessSignatureView from './components/AccessSignatureView'
 import { GOOGLE_APPS_SCRIPT_URL } from './config/api'
 
 const App = () => {
@@ -26,6 +27,8 @@ const App = () => {
       setView('self-service')
     } else if (viewParam === 'register') {
       setView('register')
+    } else if (viewParam === 'access-signature') {
+      setView('access-signature')
     } else {
       setView('admin')
     }
@@ -48,6 +51,10 @@ const App = () => {
 
   if (view === 'register') {
     return <RegistrationForm googleAppsScriptUrl={googleAppsScriptUrl} />
+  }
+
+  if (view === 'access-signature') {
+    return <AccessSignatureView googleAppsScriptUrl={googleAppsScriptUrl} />
   }
 
   if (view === 'self-service') {
@@ -120,6 +127,23 @@ const App = () => {
                     <i className="ph-bold ph-pencil-simple"></i> 인사기록카드 및 입사서약 작성
                   </a>
                   <span className="url-hint">웹에서 바로 작성 및 서명할 수 있습니다.</span>
+                </div>
+              </div>
+            </article>
+
+            <article className="step-card visible">
+              <div className="step-header">
+                <div className="step-badge"><i className="ph-bold ph-signature" /></div>
+                <div className="step-title-wrapper">
+                  <h2>접근권한 요청서 서명 등록</h2>
+                  <p className="step-desc">담당자 확인 아래 이름과 부서를 조회한 뒤 서명합니다.</p>
+                </div>
+              </div>
+              <div className="step-body">
+                <div className="action-group">
+                  <a href="?view=access-signature" className="btn-primary">
+                    <i className="ph-bold ph-pen-nib" /> 접근권한 서명 등록
+                  </a>
                 </div>
               </div>
             </article>

@@ -5,6 +5,11 @@ const OJT_SPREADSHEET_ID = "1VeROZKInmmQR1wcpDPjSEPSqvZq5qlNvno1X7267OKg";
 const REGISTRATION_SPREADSHEET_ID = "1YsuqFN43YXJCYjIlIkGsPAJPAcRTUGEtMWe2E-DUy_U";
 const REGISTRATION_SHEET = "설문지 응답 시트1";
 const DRIVE_ROOT_FOLDER_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
+const ACCESS_SPREADSHEET_ID = "1jA0_xY3LQJjpaIJcfp7o7IxcSEbmLdGHlkSviNvECD4";
+const ACCESS_TEMPLATE_ID = "1jc5Ez2votn4uItriaLUJrbq7vnJZK1mdxKNHwU6De2E";
+const EDUCATION_ROOT_FOLDER_ID = "1QboVZaNAR7altzSLrmCLCIgVaPzlsyyA";
+const ACCESS_STATUS_COLUMN = 14; // N열
+const ACCESS_STATUS_HEADER = "서명 상태";
 
 const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
 const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
@@ -14,6 +19,7 @@ const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs";
 
 const ONBOARDING_SHEET = "입사자(Onboarding)";
 const OFFBOARDING_SHEET = "퇴사자(Offboarding)";
+const ACCESS_SIGNATURE_SHEET = "접근권한 서명";
 const CONFIG_SHEET = "솔라피&슬랙 설정";
 const LOG_SHEET = "처리로그";
 const TIME_ZONE = "Asia/Seoul";
@@ -22,6 +28,10 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("🌟 네이처 자동화")
     .addItem("시트 및 설정 초기화", "initializeAllSheets")
+    .addSeparator()
+    .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
+    .addItem("2025년 접근권한 통합문서 생성", "generateAccessRequests2025")
+    .addItem("2026년 접근권한 통합문서 생성", "generateAccessRequests2026")
     .addToUi();
 }
 
@@ -32,6 +42,9 @@ function initializeAllSheets() {
   ]);
   ensureSheet(ss, OFFBOARDING_SHEET, [
     "타임스탬프", "이름", "부서", "직종", "사직일", "사직사유", "출입카드 반납여부", "검사및유니폼여부", "개인 IRP 계좌 사본 제출여부", "서류내역", "서명이미지", "결과_사직서", "결과_보안서약"
+  ]);
+  ensureSheet(ss, ACCESS_SIGNATURE_SHEET, [
+    "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
   ]);
   ensureLogSheet(ss);
 
@@ -51,6 +64,25 @@ function initializeAllSheets() {
     configSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
   }
   configSheet.setFrozenRows(1);
+}
+
+function initializeAccessAutomation() {
+  const accessSpreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  accessSpreadsheet.getSheets().forEach(function (sheet) {
+    if (/^\d{4}$/.test(sheet.getName())) {
+      sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+    }
+  });
+
+  refreshAccessSignatureStatuses();
+}
+
+function generateAccessRequests2025() {
+  return generateAccessRequestArchive("2025");
+}
+
+function generateAccessRequests2026() {
+  return generateAccessRequestArchive("2026");
 }
 
 function doGet(e) {
@@ -118,6 +150,8 @@ function doPost(e) {
   }
 
   try {
+    if (data.action === "lookupAccessEmployee") return lookupAccessEmployeeResponse(data);
+    if (data.action === "saveAccessSignature") return saveAccessSignature(data);
     if (data.action === "saveSignatureOnly") return saveSignatureOnly(data);
     if (data.action === "sendSmsLink") return sendSmsLink(data);
     if (data.action === "registerEmployee") return registerEmployee(data);
@@ -182,6 +216,195 @@ function registerEmployee(data) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function lookupAccessEmployeeResponse(data) {
+  requireFields(data, ["name", "dept"]);
+  const lookup = findAccessEmployee(data.name, data.dept);
+  if (!lookup.matches.length) {
+    return jsonResponse({
+      result: "success",
+      found: false,
+      status: lookup.nameMatches.length ? "직원정보불일치" : "없음",
+      message: lookup.nameMatches.length
+        ? "이름은 확인되지만 부서 정보가 일치하지 않습니다. 담당자에게 문의해 주세요."
+        : "이름과 부서가 일치하는 직원을 찾을 수 없습니다."
+    });
+  }
+
+  const birthKeys = uniqueValues(lookup.matches.map(function (match) { return match.birthKey; }).filter(Boolean));
+  if (birthKeys.length !== 1) {
+    return jsonResponse({
+      result: "success",
+      found: false,
+      status: "직원정보불일치",
+      message: "동일한 이름과 부서의 직원 정보가 둘 이상입니다. 담당자 확인이 필요합니다."
+    });
+  }
+
+  const alreadySigned = lookup.matches.some(function (match) { return match.status === "있음"; });
+  return jsonResponse({
+    result: "success",
+    found: true,
+    alreadySigned: alreadySigned,
+    name: lookup.matches[0].name,
+    dept: lookup.matches[0].dept,
+    message: alreadySigned ? "이미 등록된 서명이 있습니다." : "직원 정보가 확인되었습니다."
+  });
+}
+
+function saveAccessSignature(data) {
+  requireFields(data, ["name", "dept", "signature"]);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
+  try {
+    const lookup = findAccessEmployee(data.name, data.dept);
+    if (!lookup.matches.length) {
+      updateNamedAccessRows(lookup.nameMatches, "직원정보불일치");
+      throw new Error("이름과 부서가 일치하는 직원을 찾을 수 없습니다.");
+    }
+    if (lookup.matches.some(function (match) { return match.status === "있음"; })) {
+      throw new Error("이미 등록된 서명이 있습니다. 재서명은 필요하지 않습니다.");
+    }
+
+    const birthKeys = uniqueValues(lookup.matches.map(function (match) { return match.birthKey; }).filter(Boolean));
+    if (birthKeys.length !== 1) throw new Error("직원 생년월일 정보를 하나로 확인할 수 없습니다.");
+
+    const saved = saveSignature(lookup.matches[0].name, birthKeys[0], data.signature);
+    recordAccessSignature(lookup.matches[0].name, lookup.matches[0].dept, birthKeys[0], saved.url);
+    updateNamedAccessRows(lookup.matches, "있음");
+    SpreadsheetApp.flush();
+    return jsonResponse({ result: "success", driveUrl: saved.url, status: "있음" });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function findAccessEmployee(name, dept) {
+  const targetName = normalizePersonName(name);
+  const targetDept = normalizeDepartment(dept);
+  const matches = [];
+  const nameMatches = [];
+  const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+
+  spreadsheet.getSheets().forEach(function (sheet) {
+    if (!/^\d{4}$/.test(sheet.getName()) || sheet.getLastRow() < 2) return;
+    const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN).getDisplayValues();
+    values.forEach(function (row, offset) {
+      if (normalizePersonName(row[1]) !== targetName) return;
+      const record = accessRowRecord(sheet, offset + 2, row);
+      nameMatches.push(record);
+      if (normalizeDepartment(row[7]) === targetDept) matches.push(record);
+    });
+  });
+  const birthIndex = buildEmployeeBirthIndex();
+  nameMatches.forEach(function (record) {
+    if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
+  });
+  return { matches: matches, nameMatches: nameMatches };
+}
+
+function accessRowRecord(sheet, rowNumber, row) {
+  return {
+    sheet: sheet,
+    rowNumber: rowNumber,
+    values: row,
+    name: String(row[1] || "").trim(),
+    requestType: String(row[2] || "").trim(),
+    reason: String(row[3] || "").trim(),
+    job: String(row[6] || "").trim(),
+    dept: String(row[7] || "").trim(),
+    birthKey: String(row[10] || "").replace(/[^0-9]/g, "").slice(0, 6),
+    date: String(row[12] || "").trim(),
+    status: String(row[13] || "").trim()
+  };
+}
+
+function updateNamedAccessRows(records, status) {
+  records.forEach(function (record) {
+    record.sheet.getRange(record.rowNumber, ACCESS_STATUS_COLUMN).setValue(status);
+  });
+}
+
+function recordAccessSignature(name, dept, birthKey, signatureUrl) {
+  const sheet = ensureSheet(getSpreadsheet(), ACCESS_SIGNATURE_SHEET, [
+    "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
+  ]);
+  const values = sheet.getDataRange().getDisplayValues();
+  let rowNumber = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (normalizePersonName(values[i][1]) === normalizePersonName(name) &&
+        normalizeDepartment(values[i][2]) === normalizeDepartment(dept)) {
+      rowNumber = i + 1;
+      break;
+    }
+  }
+  const row = [new Date(), name, normalizeDepartment(dept), birthKey, signatureUrl];
+  if (rowNumber) sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
+  else sheet.appendRow(row);
+}
+
+function normalizePersonName(value) {
+  return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function normalizeDepartment(value) {
+  const text = String(value || "").replace(/\s+/g, "").toLowerCase();
+  if (!text) return "";
+  if (/간호부|간호과|병동|외래|수간호|\b[356]w\b/i.test(text)) return "간호부";
+  if (/물리치료센터|작업치료센터|재활.*센터|재활치료/.test(text)) return "재활치료센터";
+  if (/영양/.test(text)) return "영양팀";
+  return text;
+}
+
+function uniqueValues(values) {
+  const seen = {};
+  return values.filter(function (value) {
+    const key = String(value);
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function employeeKey(name, dept) {
+  return normalizePersonName(name) + "|" + normalizeDepartment(dept);
+}
+
+function buildEmployeeBirthIndex() {
+  const result = {};
+  const add = function (name, dept, birthValue) {
+    const birthKey = String(birthValue || "").replace(/[^0-9]/g, "").slice(0, 6);
+    if (!normalizePersonName(name) || !normalizeDepartment(dept) || birthKey.length !== 6) return;
+    const key = employeeKey(name, dept);
+    if (!result[key]) result[key] = birthKey;
+  };
+
+  const accessSpreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  accessSpreadsheet.getSheets().forEach(function (sheet) {
+    if (!/^\d{4}$/.test(sheet.getName()) || sheet.getLastRow() < 2) return;
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getDisplayValues();
+    rows.forEach(function (row) { add(row[1], row[7], row[10]); });
+  });
+
+  const onboarding = getSpreadsheet().getSheetByName(ONBOARDING_SHEET);
+  if (onboarding && onboarding.getLastRow() >= 2) {
+    onboarding.getDataRange().getDisplayValues().slice(1).forEach(function (row) {
+      add(row[1], row[2], row[4]);
+    });
+  }
+
+  try {
+    const registration = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+    if (registration && registration.getLastRow() >= 2) {
+      registration.getDataRange().getDisplayValues().slice(1).forEach(function (row) {
+        add(row[2], row[3], row[5]);
+      });
+    }
+  } catch (error) {
+    Logger.log("접근권한 직원 생년월일 보완 조회 실패: " + error);
+  }
+  return result;
 }
 
 function saveSignatureOnly(data) {
@@ -412,6 +635,270 @@ function sendSlackNotification(webhookUrl, message) {
     muteHttpExceptions: true
   });
   assertHttpSuccess(response, "Slack");
+}
+
+function refreshAccessSignatureStatuses() {
+  const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  const signatureIndex = buildAccessSignatureIndex();
+  const birthIndex = buildEmployeeBirthIndex();
+  const counts = { "있음": 0, "없음": 0, "직원정보불일치": 0 };
+
+  spreadsheet.getSheets().forEach(function (sheet) {
+    if (!/^\d{4}$/.test(sheet.getName())) return;
+    sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+    if (sheet.getLastRow() < 2) return;
+
+    const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN);
+    const values = range.getDisplayValues();
+    const statuses = values.map(function (row, offset) {
+      if (!String(row[0] || row[1] || "").trim()) return [""];
+      const record = accessRowRecord(sheet, offset + 2, row);
+      if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
+      const match = selectAccessSignature(record, signatureIndex);
+      counts[match.status] = (counts[match.status] || 0) + 1;
+      return [match.status];
+    });
+    sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
+  });
+  SpreadsheetApp.flush();
+  spreadsheet.toast(
+    `있음 ${counts["있음"]}건 / 없음 ${counts["없음"]}건 / 정보불일치 ${counts["직원정보불일치"]}건`,
+    "서명 상태 갱신 완료",
+    8
+  );
+  return counts;
+}
+
+function buildAccessSignatureIndex() {
+  const metadataById = loadSignatureMetadataById();
+  const candidates = [];
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const signatureRoots = [];
+  const signatureFolders = root.getFoldersByName("01_서명보관");
+  if (signatureFolders.hasNext()) signatureRoots.push(signatureFolders.next());
+  signatureRoots.push(DriveApp.getFolderById(EDUCATION_ROOT_FOLDER_ID));
+
+  signatureRoots.forEach(function (folder) {
+    collectSignatureImages(folder, candidates, metadataById, 0);
+  });
+  return candidates;
+}
+
+function collectSignatureImages(folder, candidates, metadataById, depth) {
+  if (depth > 8) return;
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getMimeType().indexOf("image/") !== 0 || file.getName().indexOf("서명") === -1) continue;
+    const metadata = metadataById[file.getId()] || {};
+    candidates.push({
+      id: file.getId(),
+      file: file,
+      title: file.getName(),
+      normalizedTitle: normalizePersonName(file.getName()),
+      name: metadata.name || "",
+      dept: metadata.dept || inferDepartmentFromSignatureName(file.getName()),
+      birthKey: metadata.birthKey || extractBirthKeyFromSignatureName(file.getName()),
+      modified: file.getLastUpdated().getTime()
+    });
+  }
+  const folders = folder.getFolders();
+  while (folders.hasNext()) collectSignatureImages(folders.next(), candidates, metadataById, depth + 1);
+}
+
+function loadSignatureMetadataById() {
+  const metadata = {};
+  const spreadsheet = getSpreadsheet();
+  const layouts = [
+    { name: ACCESS_SIGNATURE_SHEET, nameIndex: 1, deptIndex: 2, birthIndex: 3, signatureIndex: 4 },
+    { name: ONBOARDING_SHEET, nameIndex: 1, deptIndex: 2, birthIndex: 4, signatureIndex: 7 },
+    { name: OFFBOARDING_SHEET, nameIndex: 1, deptIndex: 2, birthIndex: -1, signatureIndex: 10 }
+  ];
+  layouts.forEach(function (layout) {
+    const sheet = spreadsheet.getSheetByName(layout.name);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    const rows = sheet.getDataRange().getDisplayValues();
+    for (let i = 1; i < rows.length; i++) {
+      const id = extractDriveFileId(rows[i][layout.signatureIndex]);
+      if (!id) continue;
+      metadata[id] = {
+        name: String(rows[i][layout.nameIndex] || "").trim(),
+        dept: normalizeDepartment(rows[i][layout.deptIndex]),
+        birthKey: layout.birthIndex >= 0
+          ? String(rows[i][layout.birthIndex] || "").replace(/[^0-9]/g, "").slice(0, 6)
+          : ""
+      };
+    }
+  });
+  return metadata;
+}
+
+function inferDepartmentFromSignatureName(fileName) {
+  const normalized = normalizeDepartment(fileName);
+  const knownDepartments = ["간호부", "재활치료센터", "영양팀", "진료부", "원무과", "심사팀", "헤모필리아센터"];
+  for (let i = 0; i < knownDepartments.length; i++) {
+    if (normalized.indexOf(knownDepartments[i]) !== -1) return knownDepartments[i];
+  }
+  return "";
+}
+
+function extractBirthKeyFromSignatureName(fileName) {
+  const fullDate = String(fileName).match(/(?:19|20)(\d{2})[-_. ]?(\d{2})[-_. ]?(\d{2})/);
+  if (fullDate) return fullDate[1] + fullDate[2] + fullDate[3];
+  const shortDate = String(fileName).match(/(?:^|[_\s])(\d{6})(?:[_\s.]|$)/);
+  return shortDate ? shortDate[1] : "";
+}
+
+function selectAccessSignature(record, candidates) {
+  const name = normalizePersonName(record.name);
+  const dept = normalizeDepartment(record.dept);
+  const nameMatches = candidates.filter(function (candidate) {
+    return normalizePersonName(candidate.name) === name || candidate.normalizedTitle.indexOf(name) !== -1;
+  });
+  if (!nameMatches.length) return { status: "없음", candidate: null };
+
+  const isDepartmentChange = record.requestType.indexOf("변경") !== -1 || record.reason.indexOf("부서변경") !== -1;
+  const valid = nameMatches.filter(function (candidate) {
+    if (candidate.dept && normalizeDepartment(candidate.dept) === dept) return true;
+    return isDepartmentChange && record.birthKey && candidate.birthKey === record.birthKey;
+  });
+  if (!valid.length) return { status: "직원정보불일치", candidate: null };
+  valid.sort(function (a, b) { return b.modified - a.modified; });
+  return { status: "있음", candidate: valid[0] };
+}
+
+function generateAccessRequestArchive(year) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 요청서 생성 작업이 진행 중입니다.");
+  try {
+    const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(String(year));
+    if (!sheet || sheet.getLastRow() < 2) throw new Error(`${year}년 데이터가 없습니다.`);
+
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN).getDisplayValues();
+    const records = rows.map(function (row, offset) {
+      return accessRowRecord(sheet, offset + 2, row);
+    }).filter(function (record) {
+      return String(record.values[0] || record.name || "").trim();
+    });
+    const signatureIndex = buildAccessSignatureIndex();
+    const birthIndex = buildEmployeeBirthIndex();
+    records.forEach(function (record) {
+      if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
+    });
+
+    const outputFolder = getAccessArchiveFolder(String(year));
+    const createdAt = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
+    const baseName = `${year}년 접근권한 요청서_통합_${createdAt}`;
+    const docFile = DriveApp.getFileById(ACCESS_TEMPLATE_ID).makeCopy(baseName, outputFolder);
+    const templateDoc = DocumentApp.openById(ACCESS_TEMPLATE_ID);
+    const templateTable = getFirstBodyTable(templateDoc.getBody());
+    if (!templateTable) throw new Error("접근권한 요청서 템플릿의 본문 표를 찾을 수 없습니다.");
+
+    const outputDoc = DocumentApp.openById(docFile.getId());
+    const outputBody = outputDoc.getBody();
+    outputBody.clear();
+
+    records.forEach(function (record, index) {
+      const signatureMatch = selectAccessSignature(record, signatureIndex);
+      record.sheet.getRange(record.rowNumber, ACCESS_STATUS_COLUMN).setValue(signatureMatch.status);
+      if (index > 0) outputBody.appendPageBreak();
+      const pageTable = outputBody.appendTable(templateTable.copy());
+      populateAccessRequestPage(pageTable, record, signatureMatch.candidate);
+    });
+    outputDoc.saveAndClose();
+    SpreadsheetApp.flush();
+
+    const pdfFile = outputFolder.createFile(docFile.getAs(MimeType.PDF)).setName(baseName + ".pdf");
+    const logSheet = ensureLogSheet(getSpreadsheet());
+    logSheet.appendRow([
+      Utilities.getUuid(), new Date(), new Date(), `접근권한 ${year}`, "연도별 통합", "완료", "PDF 생성",
+      "", docFile.getId(), pdfFile.getId(), "", "", ""
+    ]);
+    spreadsheet.toast(`${year}년 Google Doc 및 PDF 생성이 완료되었습니다.`, "접근권한 요청서", 8);
+    return { docUrl: docFile.getUrl(), pdfUrl: pdfFile.getUrl() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getAccessArchiveFolder(year) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const documents = getOrCreateFolder(root, "02_서류보관");
+  const access = getOrCreateFolder(documents, "접근권한 요청서");
+  return getOrCreateFolder(access, year + "년");
+}
+
+function getFirstBodyTable(body) {
+  for (let i = 0; i < body.getNumChildren(); i++) {
+    const child = body.getChild(i);
+    if (child.getType() === DocumentApp.ElementType.TABLE) return child.asTable();
+  }
+  return null;
+}
+
+function populateAccessRequestPage(pageTable, record, signatureCandidate) {
+  const detailsTable = findAccessDetailsTable(pageTable);
+  if (!detailsTable) throw new Error(`${record.name} 요청서의 상세 표를 찾을 수 없습니다.`);
+
+  const valueRow = detailsTable.getRow(1);
+  valueRow.getCell(0).setText(record.name);
+  valueRow.getCell(3).setText(record.job);
+  valueRow.getCell(4).setText(record.dept);
+
+  const accessCell = valueRow.getCell(1);
+  ["부여", "변경", "말소"].forEach(function (label) {
+    accessCell.replaceText(`□ 접근권한 ${label}`, record.requestType.indexOf(label) !== -1 ? `■ 접근권한 ${label}` : `□ 접근권한 ${label}`);
+  });
+  const reasonCell = valueRow.getCell(2);
+  ["입사", "부서변경", "퇴사"].forEach(function (label) {
+    reasonCell.replaceText(`□ ${label}`, record.reason.indexOf(label) !== -1 ? `■ ${label}` : `□ ${label}`);
+  });
+
+  const dateText = formatAccessDate(record.date);
+  pageTable.replaceText("20\\s*년\\s*월\\s*일", dateText);
+  const requester = findParagraphContaining(pageTable, "요청자");
+  if (requester) {
+    requester.clear();
+    requester.appendText(`요청자 : ${record.name}  `);
+    if (signatureCandidate) {
+      requester.appendInlineImage(signatureCandidate.file.getBlob()).setWidth(100).setHeight(60);
+    }
+    requester.appendText("  (인)");
+  }
+}
+
+function findAccessDetailsTable(element) {
+  if (element.getType && element.getType() === DocumentApp.ElementType.TABLE) {
+    const table = element.asTable();
+    if (table.getNumRows() >= 2 && table.getRow(0).getNumCells() === 5 && table.getRow(0).getText().indexOf("직원 명") !== -1) {
+      return table;
+    }
+  }
+  if (!element.getNumChildren) return null;
+  for (let i = 0; i < element.getNumChildren(); i++) {
+    const found = findAccessDetailsTable(element.getChild(i));
+    if (found) return found;
+  }
+  return null;
+}
+
+function findParagraphContaining(element, text) {
+  if (element.getType && element.getType() === DocumentApp.ElementType.PARAGRAPH) {
+    const paragraph = element.asParagraph();
+    if (paragraph.getText().indexOf(text) !== -1) return paragraph;
+  }
+  if (!element.getNumChildren) return null;
+  for (let i = 0; i < element.getNumChildren(); i++) {
+    const found = findParagraphContaining(element.getChild(i), text);
+    if (found) return found;
+  }
+  return null;
+}
+
+function formatAccessDate(value) {
+  const match = String(value || "").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return match ? `${match[1]}년 ${Number(match[2])}월 ${Number(match[3])}일` : String(value || "").trim();
 }
 
 function assertHttpSuccess(response, serviceName) {
