@@ -28,6 +28,7 @@ const REISSUE_LOG_SHEET = "문서재생성로그";
 const TIME_ZONE = "Asia/Seoul";
 const PRIVACY_REISSUE_VERSION = "privacy-date-style-v3";
 const REISSUE_BATCH_SIZE = 20;
+const ACCESS_LEGACY_SCAN_CACHE_MS = 6 * 60 * 60 * 1000;
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -1209,9 +1210,10 @@ function sendSlackNotification(webhookUrl, message) {
 
 function refreshAccessSignatureStatuses() {
   const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
-  const signatureIndex = buildAccessSignatureIndex();
   const birthIndex = buildEmployeeBirthIndex();
   const counts = { "있음": 0, "없음": 0, "직원정보불일치": 0 };
+  const groups = [];
+  const allRecords = [];
 
   spreadsheet.getSheets().forEach(function (sheet) {
     if (!/^\d{4}$/.test(sheet.getName())) return;
@@ -1220,15 +1222,25 @@ function refreshAccessSignatureStatuses() {
 
     const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN);
     const values = range.getDisplayValues();
-    const statuses = values.map(function (row, offset) {
-      if (!String(row[0] || row[1] || "").trim()) return [""];
+    const records = values.map(function (row, offset) {
+      if (!String(row[0] || row[1] || "").trim()) return null;
       const record = accessRowRecord(sheet, offset + 2, row);
       if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
+      allRecords.push(record);
+      return record;
+    });
+    groups.push({ sheet: sheet, records: records });
+  });
+
+  const signatureIndex = buildAccessSignatureIndex(allRecords, { forceLegacyScan: true, cacheKey: "all" });
+  groups.forEach(function (group) {
+    const statuses = group.records.map(function (record) {
+      if (!record) return [""];
       const match = selectAccessSignature(record, signatureIndex);
       counts[match.status] = (counts[match.status] || 0) + 1;
       return [match.status];
     });
-    sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
+    group.sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
   });
   SpreadsheetApp.flush();
   spreadsheet.toast(
@@ -1239,10 +1251,51 @@ function refreshAccessSignatureStatuses() {
   return counts;
 }
 
-function buildAccessSignatureIndex() {
+function buildAccessSignatureIndex(records, options) {
+  options = options || {};
   const metadataById = loadSignatureMetadataById();
-  const employeeMetadataByName = buildAccessEmployeeMetadataByName();
   const candidates = [];
+  const candidateIds = {};
+  const targetNames = {};
+  (records || []).forEach(function (record) {
+    const key = normalizePersonName(record.name);
+    if (key) targetNames[key] = true;
+  });
+  const hasTargetNames = Object.keys(targetNames).length > 0;
+
+  Object.keys(metadataById).forEach(function (id) {
+    const metadata = metadataById[id];
+    if (hasTargetNames && !targetNames[normalizePersonName(metadata.name)]) return;
+    try {
+      const file = DriveApp.getFileById(id);
+      if (file.getMimeType().indexOf("image/") !== 0) return;
+      candidates.push(signatureCandidate(file, metadata, {}));
+      candidateIds[id] = true;
+    } catch (error) {
+      Logger.log("기록된 서명 파일 조회 실패(" + id + "): " + error);
+    }
+  });
+
+  const unresolved = (records || []).filter(function (record) {
+    return selectAccessSignature(record, candidates).status !== "있음";
+  });
+  if (!unresolved.length) return candidates;
+
+  const properties = PropertiesService.getScriptProperties();
+  const globalScanAt = Number(properties.getProperty("ACCESS_LEGACY_SCAN_AT_all") || 0);
+  const scopedProperty = "ACCESS_LEGACY_SCAN_AT_" + String(options.cacheKey || "default");
+  const scopedScanAt = Number(properties.getProperty(scopedProperty) || 0);
+  const lastScanAt = Math.max(globalScanAt, scopedScanAt);
+  if (!options.forceLegacyScan && lastScanAt && Date.now() - lastScanAt < ACCESS_LEGACY_SCAN_CACHE_MS) {
+    return candidates;
+  }
+
+  const employeeMetadataByName = buildAccessEmployeeMetadataByName();
+  const unresolvedNames = {};
+  unresolved.forEach(function (record) {
+    const key = normalizePersonName(record.name);
+    if (key) unresolvedNames[key] = true;
+  });
   const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
   const signatureRoots = [];
   const signatureFolders = root.getFoldersByName("01_서명보관");
@@ -1250,33 +1303,79 @@ function buildAccessSignatureIndex() {
   signatureRoots.push(DriveApp.getFolderById(EDUCATION_ROOT_FOLDER_ID));
 
   signatureRoots.forEach(function (folder) {
-    collectSignatureImages(folder, candidates, metadataById, employeeMetadataByName, 0);
+    collectSignatureImages(folder, candidates, candidateIds, metadataById, employeeMetadataByName, unresolvedNames, 0);
   });
+  cacheResolvedAccessSignatures(unresolved, candidates, metadataById);
+  properties.setProperty(scopedProperty, String(Date.now()));
   return candidates;
 }
 
-function collectSignatureImages(folder, candidates, metadataById, employeeMetadataByName, depth) {
+function collectSignatureImages(folder, candidates, candidateIds, metadataById, employeeMetadataByName, targetNames, depth) {
   if (depth > 8) return;
   const files = folder.getFiles();
   while (files.hasNext()) {
     const file = files.next();
-    if (file.getMimeType().indexOf("image/") !== 0 || file.getName().indexOf("서명") === -1) continue;
+    if (candidateIds[file.getId()] || file.getMimeType().indexOf("image/") !== 0 || file.getName().indexOf("서명") === -1) continue;
     const metadata = metadataById[file.getId()] || {};
     const employeeMetadata = inferEmployeeMetadataFromSignatureName(file.getName(), employeeMetadataByName);
-    candidates.push({
-      id: file.getId(),
-      file: file,
-      title: file.getName(),
-      normalizedTitle: normalizePersonName(file.getName()),
-      name: metadata.name || employeeMetadata.name || "",
-      dept: metadata.dept || inferDepartmentFromSignatureName(file.getName()) || employeeMetadata.dept,
-      birthKey: metadata.birthKey || employeeMetadata.birthKey || extractBirthKeyFromSignatureName(file.getName()),
-      modified: file.getLastUpdated().getTime()
+    const candidate = signatureCandidate(file, metadata, employeeMetadata);
+    const candidateName = normalizePersonName(candidate.name);
+    const titleMatches = Object.keys(targetNames).some(function (name) {
+      return candidate.normalizedTitle.indexOf(name) !== -1;
     });
+    if (targetNames[candidateName] || titleMatches) {
+      candidates.push(candidate);
+      candidateIds[candidate.id] = true;
+    }
   }
   const folders = folder.getFolders();
   while (folders.hasNext()) {
-    collectSignatureImages(folders.next(), candidates, metadataById, employeeMetadataByName, depth + 1);
+    collectSignatureImages(folders.next(), candidates, candidateIds, metadataById, employeeMetadataByName, targetNames, depth + 1);
+  }
+}
+
+function signatureCandidate(file, metadata, employeeMetadata) {
+  const title = file.getName();
+  return {
+    id: file.getId(),
+    file: file,
+    title: title,
+    normalizedTitle: normalizePersonName(title),
+    name: metadata.name || employeeMetadata.name || "",
+    dept: metadata.dept || inferDepartmentFromSignatureName(title) || employeeMetadata.dept || "",
+    birthKey: metadata.birthKey || employeeMetadata.birthKey || extractBirthKeyFromSignatureName(title),
+    modified: file.getLastUpdated().getTime()
+  };
+}
+
+function cacheResolvedAccessSignatures(records, candidates, metadataById) {
+  const sheet = ensureSheet(getSpreadsheet(), ACCESS_SIGNATURE_SHEET, [
+    "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
+  ]);
+  const existingRows = sheet.getDataRange().getDisplayValues();
+  const existingKeys = {};
+  existingRows.slice(1).forEach(function (row) {
+    existingKeys[employeeKey(row[1], row[2]) + "|" + String(row[3] || "").replace(/[^0-9]/g, "").slice(0, 6)] = true;
+  });
+  const additions = [];
+
+  records.forEach(function (record) {
+    const match = selectAccessSignature(record, candidates);
+    if (!match.candidate) return;
+    const birthKey = record.birthKey || match.candidate.birthKey || "";
+    const indexed = metadataById[match.candidate.id] || {};
+    const correctlyIndexed = normalizePersonName(indexed.name) === normalizePersonName(record.name) &&
+      normalizeDepartment(indexed.dept) === normalizeDepartment(record.dept) &&
+      (!birthKey || !indexed.birthKey || indexed.birthKey === birthKey);
+    if (correctlyIndexed) return;
+    const key = employeeKey(record.name, record.dept) + "|" + birthKey;
+    if (existingKeys[key]) return;
+    existingKeys[key] = true;
+    additions.push([new Date(), record.name, normalizeDepartment(record.dept), birthKey, driveContentUrl(match.candidate.id)]);
+  });
+
+  if (additions.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, additions.length, additions[0].length).setValues(additions);
   }
 }
 
@@ -1295,13 +1394,13 @@ function loadSignatureMetadataById() {
     for (let i = 1; i < rows.length; i++) {
       const id = extractDriveFileId(rows[i][layout.signatureIndex]);
       if (!id) continue;
-      metadata[id] = {
+      metadata[id] = mergeSignatureMetadata(metadata[id], {
         name: String(rows[i][layout.nameIndex] || "").trim(),
         dept: normalizeDepartment(rows[i][layout.deptIndex]),
         birthKey: layout.birthIndex >= 0
           ? String(rows[i][layout.birthIndex] || "").replace(/[^0-9]/g, "").slice(0, 6)
           : ""
-      };
+      });
     }
   });
 
@@ -1312,14 +1411,23 @@ function loadSignatureMetadataById() {
     for (let i = 1; i < rows.length; i++) {
       const id = extractDriveFileId(rows[i][8]);
       if (!id) continue;
-      metadata[id] = {
+      metadata[id] = mergeSignatureMetadata(metadata[id], {
         name: String(rows[i][7] || "").trim(),
         dept: normalizeDepartment(rows[i][5]),
         birthKey: ""
-      };
+      });
     }
   }
   return metadata;
+}
+
+function mergeSignatureMetadata(existing, incoming) {
+  existing = existing || {};
+  return {
+    name: existing.name || incoming.name || "",
+    dept: existing.dept || incoming.dept || "",
+    birthKey: existing.birthKey || incoming.birthKey || ""
+  };
 }
 
 function buildAccessEmployeeMetadataByName() {
@@ -1399,7 +1507,12 @@ function selectAccessSignature(record, candidates) {
     return isDepartmentChange && record.birthKey && candidate.birthKey === record.birthKey;
   });
   if (!valid.length) return { status: "직원정보불일치", candidate: null };
-  valid.sort(function (a, b) { return b.modified - a.modified; });
+  valid.sort(function (a, b) {
+    const aExactBirth = record.birthKey && a.birthKey === record.birthKey ? 1 : 0;
+    const bExactBirth = record.birthKey && b.birthKey === record.birthKey ? 1 : 0;
+    if (aExactBirth !== bExactBirth) return bExactBirth - aExactBirth;
+    return b.modified - a.modified;
+  });
   return { status: "있음", candidate: valid[0] };
 }
 
@@ -1417,11 +1530,22 @@ function generateAccessRequestArchive(year) {
     }).filter(function (record) {
       return String(record.values[0] || record.name || "").trim();
     });
-    const signatureIndex = buildAccessSignatureIndex();
     const birthIndex = buildEmployeeBirthIndex();
     records.forEach(function (record) {
       if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
     });
+    const signatureIndex = buildAccessSignatureIndex(records, { cacheKey: "archive_" + String(year) });
+    const signatureMatches = records.map(function (record) {
+      return selectAccessSignature(record, signatureIndex);
+    });
+    const statusByRow = {};
+    records.forEach(function (record, index) {
+      statusByRow[record.rowNumber] = signatureMatches[index].status;
+    });
+    const statuses = rows.map(function (row, offset) {
+      return [statusByRow[offset + 2] || ""];
+    });
+    sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
 
     const outputFolder = getAccessArchiveFolder(String(year));
     const createdAt = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
@@ -1434,13 +1558,13 @@ function generateAccessRequestArchive(year) {
     const outputDoc = DocumentApp.openById(docFile.getId());
     const outputBody = outputDoc.getBody();
     outputBody.clear();
+    const signatureBlobCache = {};
 
     records.forEach(function (record, index) {
-      const signatureMatch = selectAccessSignature(record, signatureIndex);
-      record.sheet.getRange(record.rowNumber, ACCESS_STATUS_COLUMN).setValue(signatureMatch.status);
+      const signatureMatch = signatureMatches[index];
       if (index > 0) outputBody.appendPageBreak();
       const pageTable = outputBody.appendTable(templateTable.copy());
-      populateAccessRequestPage(pageTable, record, signatureMatch.candidate);
+      populateAccessRequestPage(pageTable, record, signatureMatch.candidate, signatureBlobCache);
     });
     outputDoc.saveAndClose();
     SpreadsheetApp.flush();
@@ -1473,7 +1597,7 @@ function getFirstBodyTable(body) {
   return null;
 }
 
-function populateAccessRequestPage(pageTable, record, signatureCandidate) {
+function populateAccessRequestPage(pageTable, record, signatureCandidate, signatureBlobCache) {
   const detailsTable = findAccessDetailsTable(pageTable);
   if (!detailsTable) throw new Error(`${record.name} 요청서의 상세 표를 찾을 수 없습니다.`);
 
@@ -1498,7 +1622,9 @@ function populateAccessRequestPage(pageTable, record, signatureCandidate) {
     requester.clear();
     requester.appendText(`요청자 : ${record.name}  `);
     if (signatureCandidate) {
-      requester.appendInlineImage(signatureCandidate.file.getBlob()).setWidth(100).setHeight(60);
+      const signatureBlob = signatureBlobCache[signatureCandidate.id] || signatureCandidate.file.getBlob();
+      signatureBlobCache[signatureCandidate.id] = signatureBlob;
+      requester.appendInlineImage(signatureBlob).setWidth(100).setHeight(60);
     }
     requester.appendText("  (인)");
   }
