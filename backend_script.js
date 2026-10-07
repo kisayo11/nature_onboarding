@@ -22,6 +22,7 @@ const TEMPLATE_SECURITY_OFF_ID = "1HHaNxruT-k21ftyt1IAJzf6sq0q0n6yaODCX19stLjs";
 const ONBOARDING_SHEET = "입사자(Onboarding)";
 const OFFBOARDING_SHEET = "퇴사자(Offboarding)";
 const ACCESS_SIGNATURE_SHEET = "접근권한 서명";
+const ACCESS_RULE_SHEET = "접근권한 기준";
 const CONFIG_SHEET = "솔라피&슬랙 설정";
 const LOG_SHEET = "처리로그";
 const REISSUE_LOG_SHEET = "문서재생성로그";
@@ -29,6 +30,12 @@ const TIME_ZONE = "Asia/Seoul";
 const PRIVACY_REISSUE_VERSION = "privacy-date-style-v3";
 const REISSUE_BATCH_SIZE = 20;
 const ACCESS_LEGACY_SCAN_CACHE_MS = 6 * 60 * 60 * 1000;
+const ACCESS_RULE_START_COLUMN = 15; // O열
+const ACCESS_RULE_HEADERS = ["권한기준", "대상", "작성", "수정", "열람", "출력", "출력조건"];
+const ACCESS_RULE_SHEET_HEADERS = [
+  "표준부서", "기준직종/세부업무", "목적", "대상", "작성", "수정", "열람", "출력", "출력조건",
+  "부서별칭(|구분)", "직종별칭(|구분)", "기본규칙", "사용여부"
+];
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -46,6 +53,7 @@ function onOpen() {
     .addSeparator()
     .addSubMenu(reissueMenu)
     .addSeparator()
+    .addItem("접근권한 기준표 생성/동기화", "syncAccessRuleAutomation")
     .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
     .addItem("2025년 접근권한 통합문서 생성", "generateAccessRequests2025")
     .addItem("2026년 접근권한 통합문서 생성", "generateAccessRequests2026")
@@ -88,13 +96,23 @@ function initializeAllSheets() {
 
 function initializeAccessAutomation() {
   const accessSpreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  ensureAccessRuleSheet(accessSpreadsheet);
   accessSpreadsheet.getSheets().forEach(function (sheet) {
     if (/^\d{4}$/.test(sheet.getName())) {
       sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+      sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
     }
   });
 
   refreshAccessSignatureStatuses();
+}
+
+function syncAccessRuleAutomation() {
+  const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  const sheet = ensureAccessRuleSheet(spreadsheet);
+  refreshAccessSignatureStatuses();
+  spreadsheet.toast("접근권한 기준표와 연도별 권한 값이 동기화되었습니다.", "접근권한 기준", 8);
+  return { sheetName: sheet.getName(), sheetUrl: accessRuleSheetUrl(sheet) };
 }
 
 function generateAccessRequests2025() {
@@ -454,6 +472,9 @@ function doGet(e) {
     if (params.action === "getRegistrationConsent") {
       return jsonResponse({ result: "success", blocks: loadRegistrationConsentDocument() });
     }
+    if (params.action === "getAccessRule") {
+      return getAccessRuleResponse(params);
+    }
     if (params.action === "getSignature") {
       requireFields(params, ["name", "birth"]);
       const folder = getStorageFolders(false).signature;
@@ -524,6 +545,7 @@ function doPost(e) {
 function registerEmployee(data) {
   requireFields(data, ["privacyConsent", "name", "residentNumber", "phone", "email", "emergencyContact", "hireDate", "signature"]);
   if (data.privacyConsent !== "동의함") throw new Error("개인정보 수집·이용 동의가 필요합니다.");
+  if (data.accessConsent !== true) throw new Error("접근권한 부여요청 확인 및 동의가 필요합니다.");
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw new Error("다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
@@ -571,7 +593,8 @@ function registerEmployee(data) {
       safetyUrl: docSafety.url,
       privacyUrl: docPrivacy.url,
       accessStatus: accessSync.status,
-      accessMessage: accessSync.message || ""
+      accessMessage: accessSync.message || "",
+      accessRuleStatus: accessSync.accessRuleStatus || ""
     });
   } catch (error) {
     trashFiles(createdFileIds);
@@ -709,10 +732,160 @@ function recordAccessSignature(name, dept, birthKey, signatureUrl) {
   else sheet.appendRow(row);
 }
 
+function defaultAccessRules() {
+  return [
+    ["진료부", "의사", "진료", "해당 환자", "O", "O", "O", "X", "", "진료과|의료진", "의사|전문의", "TRUE", "TRUE"],
+    ["진료부", "당직의", "진료", "재원 환자", "O", "O", "O", "X", "", "진료과|의료진", "당직의", "FALSE", "TRUE"],
+    ["간호부", "간호사", "환자간호", "재원 환자", "O", "O", "O", "X", "퇴원간호계획지·향정신성의약품 관련 지정 서식만 출력 가능", "간호과|병동|외래", "간호사|RN", "TRUE", "TRUE"],
+    ["간호부", "간호조무사", "환자간호", "재원 환자", "O", "O", "O", "X", "", "간호과|병동", "간호조무사|AN", "FALSE", "TRUE"],
+    ["간호부", "외래간호", "외래환자", "해당 환자", "X", "X", "O", "X", "", "외래", "외래간호|외래간호사", "FALSE", "TRUE"],
+    ["환자안전전담", "QPS실", "환자안전 관리담당", "재원 환자", "X", "X", "O", "O", "권한을 부여받은 지정 서식만 작성·수정 가능", "환자안전|QPS", "QPS실|환자안전전담", "TRUE", "TRUE"],
+    ["감염관리실", "감염관리", "감염 관리", "재원 환자", "X", "X", "O", "X", "권한을 부여받은 지정 서식만 작성·수정 가능", "감염관리", "감염관리|감염관리전담", "TRUE", "TRUE"],
+    ["약제과", "약사", "약물관리", "해당 환자", "X", "X", "O", "X", "처방전만 출력 가능", "약제실|약국", "약사", "TRUE", "TRUE"],
+    ["임상병리실", "임상병리사", "검사시행·결과확인", "해당 환자", "O", "O", "O", "X", "", "검사실", "임상병리사", "TRUE", "TRUE"],
+    ["영상검사실", "방사선사", "검사시행·결과확인", "해당 환자", "X", "X", "O", "X", "지정 검사만 가능", "영상의학과|방사선실", "방사선사", "TRUE", "TRUE"],
+    ["재활치료센터", "물리치료사", "물리치료", "해당 환자", "O", "O", "O", "X", "권한을 부여받은 지정 서식만 작성·수정 가능", "물리치료센터|재활센터", "물리치료사|PT", "TRUE", "TRUE"],
+    ["재활치료센터", "작업치료사", "작업치료", "해당 환자", "O", "O", "O", "X", "권한을 부여받은 지정 서식만 작성·수정 가능", "작업치료센터|재활센터", "작업치료사|OT", "FALSE", "TRUE"],
+    ["재활치료센터", "언어재활사", "언어치료", "해당 환자", "O", "O", "O", "X", "권한을 부여받은 지정 서식만 작성·수정 가능", "언어치료실|재활센터", "언어재활사|언어치료사|ST", "FALSE", "TRUE"],
+    ["사회사업실", "사회복지사", "사회사업·상담", "해당 환자", "O", "O", "O", "X", "권한을 부여받은 지정 서식만 작성·수정 가능", "사회사업", "사회복지사", "TRUE", "TRUE"],
+    ["영양팀", "영양사", "영양관리", "재원 환자", "O", "O", "O", "X", "영양 상담 관련 업무 서식 출력 가능", "영양실", "영양사", "TRUE", "TRUE"],
+    ["영양팀", "조리원", "급식업무", "해당 없음", "X", "X", "X", "X", "의무기록 접근권한 해당 없음", "영양실|조리실", "조리원|조리사", "FALSE", "TRUE"],
+    ["원무과", "원무행정", "원무행정", "재원 환자", "X", "X", "O", "O", "", "원무|원무행정", "원무행정|원무과", "TRUE", "TRUE"],
+    ["심사팀", "심사/청구", "심사·청구", "재원 환자", "X", "X", "O", "O", "", "심사과|보험심사", "심사|청구|보건정보관리사", "TRUE", "TRUE"],
+    ["보건의료정보관리", "의무기록관리", "의무기록관리", "재원 환자", "X", "X", "O", "O", "", "의무기록실", "보건의료정보관리사|의무기록사", "TRUE", "TRUE"],
+    ["전산", "전산관리", "전산관리", "프로그램 관리", "X", "X", "O", "X", "", "전산실", "전산|전산관리", "TRUE", "TRUE"],
+    ["시설 미화팀", "시설관리", "시설관리", "해당 없음", "X", "X", "X", "X", "의무기록 접근권한 해당 없음", "시설팀|시설관리", "시설관리", "TRUE", "TRUE"],
+    ["시설 미화팀", "미화", "환경관리", "해당 없음", "X", "X", "X", "X", "의무기록 접근권한 해당 없음", "미화팀|환경미화", "미화|환경미화", "FALSE", "TRUE"]
+  ];
+}
+
+function ensureAccessRuleSheet(spreadsheet) {
+  spreadsheet = spreadsheet || SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  let sheet = spreadsheet.getSheetByName(ACCESS_RULE_SHEET);
+  const isNew = !sheet;
+  if (!sheet) sheet = spreadsheet.insertSheet(ACCESS_RULE_SHEET);
+  sheet.getRange(1, 1, 1, ACCESS_RULE_SHEET_HEADERS.length).setValues([ACCESS_RULE_SHEET_HEADERS]);
+  if (sheet.getLastRow() < 2) {
+    const rules = defaultAccessRules();
+    sheet.getRange(2, 1, rules.length, ACCESS_RULE_SHEET_HEADERS.length).setValues(rules);
+  }
+  sheet.setFrozenRows(1);
+  sheet.setTabColor("#0F766E");
+  sheet.getRange(1, 1, 1, ACCESS_RULE_SHEET_HEADERS.length)
+    .setBackground("#E2E8F0")
+    .setFontWeight("bold")
+    .setHorizontalAlignment("center");
+  sheet.getRange(2, 5, Math.max(sheet.getLastRow() - 1, 1), 4).setHorizontalAlignment("center");
+  sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 2), ACCESS_RULE_SHEET_HEADERS.length).setWrap(true);
+  sheet.setColumnWidths(1, 4, 120);
+  sheet.setColumnWidths(5, 4, 65);
+  sheet.setColumnWidth(9, 260);
+  sheet.setColumnWidths(10, 2, 190);
+  sheet.setColumnWidths(12, 2, 85);
+
+  if (isNew || !sheet.getFilter()) {
+    if (sheet.getFilter()) sheet.getFilter().remove();
+    sheet.getRange(1, 1, sheet.getLastRow(), ACCESS_RULE_SHEET_HEADERS.length).createFilter();
+  }
+  const oxValidation = SpreadsheetApp.newDataValidation().requireValueInList(["O", "X"], true).setAllowInvalid(false).build();
+  const boolValidation = SpreadsheetApp.newDataValidation().requireValueInList(["TRUE", "FALSE"], true).setAllowInvalid(false).build();
+  if (sheet.getMaxRows() >= 2) {
+    sheet.getRange(2, 5, sheet.getMaxRows() - 1, 4).setDataValidation(oxValidation);
+    sheet.getRange(2, 12, sheet.getMaxRows() - 1, 2).setDataValidation(boolValidation);
+  }
+  return sheet;
+}
+
+function accessRuleSheetUrl(sheet) {
+  return "https://docs.google.com/spreadsheets/d/" + ACCESS_SPREADSHEET_ID + "/edit#gid=" + sheet.getSheetId();
+}
+
+function getAccessRuleResponse(data) {
+  const ruleSheet = ensureAccessRuleSheet();
+  const rule = resolveAccessRule(data.dept || "", data.job || "", ruleSheet);
+  return jsonResponse({
+    result: "success",
+    templateId: ACCESS_TEMPLATE_ID,
+    ruleSheetUrl: accessRuleSheetUrl(ruleSheet),
+    rule: rule
+  });
+}
+
+function resolveAccessRule(dept, job, ruleSheet) {
+  ruleSheet = ruleSheet || ensureAccessRuleSheet();
+  const targetDept = normalizeRuleText(normalizeDepartment(dept));
+  const targetJob = normalizeRuleText(job);
+  if (!targetDept && !targetJob) return { matched: false, status: "입력대기" };
+  const rows = ruleSheet.getRange(2, 1, ruleSheet.getLastRow() - 1, ACCESS_RULE_SHEET_HEADERS.length).getDisplayValues();
+  const candidates = [];
+
+  rows.forEach(function (row) {
+    if (String(row[12] || "TRUE").toUpperCase() === "FALSE") return;
+    const deptTokens = ruleTokens([row[0], row[9]].join("|"));
+    const jobTokens = ruleTokens([row[1], row[10]].join("|"));
+    const deptScore = ruleMatchScore(targetDept, deptTokens);
+    if (!deptScore) return;
+    const jobScore = ruleMatchScore(targetJob, jobTokens);
+    candidates.push({ row: row, score: (deptScore * 10) + (jobScore * 100), jobScore: jobScore });
+  });
+
+  let selected = candidates.filter(function (candidate) { return candidate.jobScore > 0; })
+    .sort(function (a, b) { return b.score - a.score; })[0];
+  let status = "자동결정";
+  if (!selected) {
+    selected = candidates.filter(function (candidate) {
+      return String(candidate.row[11] || "").toUpperCase() === "TRUE";
+    })[0];
+    status = selected ? "부서기본규칙" : "기준확인필요";
+  }
+  if (!selected) return { matched: false, status: "기준확인필요", dept: dept, job: job };
+
+  const row = selected.row;
+  return {
+    matched: true,
+    status: status,
+    department: row[0],
+    role: row[1],
+    purpose: row[2],
+    target: row[3],
+    create: row[4],
+    edit: row[5],
+    read: row[6],
+    print: row[7],
+    printCondition: row[8]
+  };
+}
+
+function normalizeRuleText(value) {
+  return String(value || "").toLowerCase().replace(/[\s()/_-]+/g, "").trim();
+}
+
+function ruleTokens(value) {
+  return String(value || "").split("|").map(function (token) {
+    return normalizeRuleText(normalizeDepartment(token));
+  }).filter(Boolean);
+}
+
+function ruleMatchScore(target, tokens) {
+  if (!target) return 0;
+  let score = 0;
+  tokens.forEach(function (token) {
+    if (target === token) score = Math.max(score, 3);
+    else if (target.indexOf(token) !== -1 || token.indexOf(target) !== -1) score = Math.max(score, 2);
+  });
+  return score;
+}
+
 function safeSyncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
   try {
     const result = syncAccessRequest(data, isOffboarding, signatureUrl, timestamp);
-    return { status: "success", message: "", year: result.year, rowNumber: result.rowNumber };
+    return {
+      status: "success",
+      message: "",
+      year: result.year,
+      rowNumber: result.rowNumber,
+      accessRuleStatus: result.accessRuleStatus
+    };
   } catch (error) {
     Logger.log("접근권한 대장 자동 연결 실패: " + error);
     return { status: "failed", message: error.message || String(error) };
@@ -751,6 +924,8 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
 
   const displayDate = `${dateParts.year}. ${dateParts.month}. ${dateParts.day}.`;
   const department = canonicalAccessDepartment(data.dept || data.department);
+  const accessRule = resolveAccessRule(department, data.job || "");
+  const ruleValues = accessRuleColumnValues(accessRule);
   const nextSequence = values.reduce(function (max, row) {
     const value = Number(String(row[0] || "").replace(/[^0-9]/g, ""));
     return isNaN(value) ? max : Math.max(max, value);
@@ -770,21 +945,21 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
     "",
     displayDate,
     "있음"
-  ];
+  ].concat(ruleValues);
 
   if (!rowNumber) {
     rowNumber = Math.max(lastRow + 1, 2);
     const formatSourceRow = lastRow >= 2 ? lastRow : 2;
     if (sheet.getMaxRows() < rowNumber) sheet.insertRowAfter(sheet.getMaxRows());
     if (sheet.getMaxRows() >= formatSourceRow) {
-      sheet.getRange(formatSourceRow, 1, 1, ACCESS_STATUS_COLUMN)
-        .copyTo(sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+      sheet.getRange(formatSourceRow, 1, 1, ACCESS_RULE_START_COLUMN + ACCESS_RULE_HEADERS.length - 1)
+        .copyTo(sheet.getRange(rowNumber, 1, 1, ACCESS_RULE_START_COLUMN + ACCESS_RULE_HEADERS.length - 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     }
-    sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).setValues([newRow]);
+    sheet.getRange(rowNumber, 1, 1, newRow.length).setValues([newRow]);
   } else {
-    const current = sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).getDisplayValues()[0];
+    const current = sheet.getRange(rowNumber, 1, 1, newRow.length).getDisplayValues()[0];
     newRow.forEach(function (value, index) {
-      if (!String(current[index] || "").trim() || [2, 3, 13].indexOf(index) !== -1) {
+      if (!String(current[index] || "").trim() || [2, 3, 13, 14, 15, 16, 17, 18, 19, 20].indexOf(index) !== -1) {
         sheet.getRange(rowNumber, index + 1).setValue(value);
       }
     });
@@ -793,7 +968,7 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
   recordAccessSignature(data.name, department, String(data.birth || data.residentNumber || "").replace(/[^0-9]/g, "").slice(0, 6), signatureUrl);
   sheet.getRange(rowNumber, ACCESS_STATUS_COLUMN).setValue("있음");
   SpreadsheetApp.flush();
-  return { year: dateParts.year, rowNumber: rowNumber };
+  return { year: dateParts.year, rowNumber: rowNumber, accessRuleStatus: accessRule.status };
 }
 
 function getOrCreateAccessYearSheet(spreadsheet, year) {
@@ -812,15 +987,22 @@ function getOrCreateAccessYearSheet(spreadsheet, year) {
       }
     } else {
       sheet = spreadsheet.insertSheet(String(year));
-      sheet.getRange(1, 1, 1, ACCESS_STATUS_COLUMN).setValues([[
+      sheet.getRange(1, 1, 1, ACCESS_RULE_START_COLUMN + ACCESS_RULE_HEADERS.length - 1).setValues([[
         "순번", "직원명", "접근권한 요청항목", "요청사유", "입사일", "퇴사일", "직종",
         "부서", "직위", "휴대폰", "주민등록번호", "면허번호", "날짜", ACCESS_STATUS_HEADER
-      ]]);
+      ].concat(ACCESS_RULE_HEADERS)]);
     }
   }
   sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+  sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
   sheet.setFrozenRows(1);
   return sheet;
+}
+
+function accessRuleColumnValues(accessRule) {
+  return accessRule && accessRule.matched
+    ? [`${accessRule.department} / ${accessRule.role} / ${accessRule.purpose}`, accessRule.target, accessRule.create, accessRule.edit, accessRule.read, accessRule.print, accessRule.printCondition || ""]
+    : ["기준확인필요", "", "", "", "", "", ""];
 }
 
 function accessDateParts(value) {
@@ -995,7 +1177,8 @@ function processSubmission(data) {
       notificationStatus: notificationErrors.length ? "failed" : "success",
       notificationErrors: notificationErrors,
       accessStatus: accessSync.status,
-      accessMessage: accessSync.message || ""
+      accessMessage: accessSync.message || "",
+      accessRuleStatus: accessSync.accessRuleStatus || ""
     });
   } catch (error) {
     trashFiles(createdFileIds);
@@ -1210,6 +1393,7 @@ function sendSlackNotification(webhookUrl, message) {
 
 function refreshAccessSignatureStatuses() {
   const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  const ruleSheet = ensureAccessRuleSheet(spreadsheet);
   const birthIndex = buildEmployeeBirthIndex();
   const counts = { "있음": 0, "없음": 0, "직원정보불일치": 0 };
   const groups = [];
@@ -1218,6 +1402,7 @@ function refreshAccessSignatureStatuses() {
   spreadsheet.getSheets().forEach(function (sheet) {
     if (!/^\d{4}$/.test(sheet.getName())) return;
     sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
+    sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
     if (sheet.getLastRow() < 2) return;
 
     const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN);
@@ -1241,6 +1426,11 @@ function refreshAccessSignatureStatuses() {
       return [match.status];
     });
     group.sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
+    const ruleValues = group.records.map(function (record) {
+      if (!record) return ["", "", "", "", "", "", ""];
+      return accessRuleColumnValues(resolveAccessRule(record.dept, record.job, ruleSheet));
+    });
+    group.sheet.getRange(2, ACCESS_RULE_START_COLUMN, ruleValues.length, ACCESS_RULE_HEADERS.length).setValues(ruleValues);
   });
   SpreadsheetApp.flush();
   spreadsheet.toast(
@@ -1531,21 +1721,30 @@ function generateAccessRequestArchive(year) {
       return String(record.values[0] || record.name || "").trim();
     });
     const birthIndex = buildEmployeeBirthIndex();
+    const ruleSheet = ensureAccessRuleSheet(spreadsheet);
     records.forEach(function (record) {
       if (!record.birthKey) record.birthKey = birthIndex[employeeKey(record.name, record.dept)] || "";
+      record.accessRule = resolveAccessRule(record.dept, record.job, ruleSheet);
     });
     const signatureIndex = buildAccessSignatureIndex(records, { cacheKey: "archive_" + String(year) });
     const signatureMatches = records.map(function (record) {
       return selectAccessSignature(record, signatureIndex);
     });
     const statusByRow = {};
+    const recordByRow = {};
     records.forEach(function (record, index) {
       statusByRow[record.rowNumber] = signatureMatches[index].status;
+      recordByRow[record.rowNumber] = record;
     });
     const statuses = rows.map(function (row, offset) {
       return [statusByRow[offset + 2] || ""];
     });
     sheet.getRange(2, ACCESS_STATUS_COLUMN, statuses.length, 1).setValues(statuses);
+    const accessRuleValues = rows.map(function (row, offset) {
+      const record = recordByRow[offset + 2];
+      return record ? accessRuleColumnValues(record.accessRule) : ["", "", "", "", "", "", ""];
+    });
+    sheet.getRange(2, ACCESS_RULE_START_COLUMN, accessRuleValues.length, ACCESS_RULE_HEADERS.length).setValues(accessRuleValues);
 
     const outputFolder = getAccessArchiveFolder(String(year));
     const createdAt = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
@@ -1617,6 +1816,19 @@ function populateAccessRequestPage(pageTable, record, signatureCandidate, signat
 
   const dateText = formatAccessDate(record.date);
   pageTable.replaceText("20\\s*년\\s*월\\s*일", dateText);
+  const accessRule = record.accessRule || { matched: false };
+  const accessReplacements = {
+    "{{대상}}": accessRule.target || "",
+    "{{목적}}": accessRule.purpose || "",
+    "{{작성권한}}": accessRule.create || "",
+    "{{수정권한}}": accessRule.edit || "",
+    "{{열람권한}}": accessRule.read || "",
+    "{{출력권한}}": accessRule.print || "",
+    "{{출력조건}}": accessRule.printCondition || ""
+  };
+  Object.keys(accessReplacements).forEach(function (tag) {
+    pageTable.replaceText(escapeRegExp(tag), accessReplacements[tag]);
+  });
   const requester = findParagraphContaining(pageTable, "요청자");
   if (requester) {
     requester.clear();

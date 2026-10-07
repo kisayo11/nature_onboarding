@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import SignaturePad from './SignaturePad'
 import SubmissionProgress from './SubmissionProgress'
+import AccessRequestPreview from './AccessRequestPreview'
 import { sendSmsLink, submitDocument } from '../services/apiClient'
 
 const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
@@ -21,7 +22,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   const [isPolling, setIsPolling] = useState(false)
   const [smsSending, setSmsSending] = useState(false)
 
-  const [viewedDocs, setViewedDocs] = useState({ resignation: false, securityOff: false })
+  const [viewedDocs, setViewedDocs] = useState({ resignation: false, securityOff: false, access: false })
   const [activeDoc, setActiveDoc] = useState('')
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -171,7 +172,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
   }
 
 
-  const allDocsViewed = viewedDocs.resignation && viewedDocs.securityOff
+  const allDocsViewed = viewedDocs.resignation && viewedDocs.securityOff && viewedDocs.access
 
   if (isSubmitted) {
     return (
@@ -214,7 +215,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
             실시간
           </span>
           <h4 style={{ marginBottom: '0.75rem', color: '#B91C1C', fontSize: '1.05rem' }}>
-            <i className="ph-fill ph-user-minus"></i> 사직원 및 보안서약서 일괄 제출
+            <i className="ph-fill ph-user-minus"></i> 사직원·보안서약서 및 접근권한 말소요청 일괄 제출
           </h4>
           <p style={{ fontSize: '0.85rem', color: '#991B1B', marginBottom: '1rem' }}>
             퇴사 절차를 위해 아래 서류 목록 탭을 눌러 본문 확인 후 인적 사항과 사직 사유를 입력하여 서명을 진행해 주세요.
@@ -223,7 +224,7 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
           <form onSubmit={handleSubmit} style={{ marginTop: '1.5rem' }}>
             <div className="form-group">
               <label style={{ color: '#B91C1C', marginBottom: '0.5rem', display: 'block', fontWeight: '700' }}>
-                [퇴직 서류 선택 - 아래 두 탭을 모두 클릭해 확인해야 서명란이 열립니다 ⚠️]
+                [퇴직 서류 선택 - 아래 세 탭을 모두 클릭해 확인해야 서명란이 열립니다 ⚠️]
               </label>
               <div className="doc-selector">
                 <div className={`doc-tab ${activeDoc === 'resignation' ? 'active' : (viewedDocs.resignation ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('resignation')}>
@@ -234,6 +235,10 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
                   <i className="ph-bold ph-shield-warning"></i>
                   <span>보안서약서 {!viewedDocs.securityOff && ' (미확인 ⚠️)'}</span>
                 </div>
+                <div className={`doc-tab ${activeDoc === 'access' ? 'active' : (viewedDocs.access ? 'viewed' : 'not-viewed')}`} onClick={() => selectDocTab('access')}>
+                  <i className="ph-bold ph-identification-card"></i>
+                  <span>접근권한 말소요청서 {!viewedDocs.access && ' (미확인 ⚠️)'}</span>
+                </div>
               </div>
             </div>
 
@@ -242,13 +247,24 @@ const OffboardingForm = ({ googleAppsScriptUrl, selfService = false }) => {
                 <label style={{ color: '#B91C1C', fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
                   [서류 미리보기]
                 </label>
-                <div style={{ overflow: 'hidden', borderRadius: '8px', backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                  <iframe
-                    src={`https://docs.google.com/document/d/${docTemplates[activeDoc]}/preview`}
-                    title="Document Preview"
-                    style={{ width: '100%', height: '450px', border: 'none', borderRadius: '8px' }}
+                {activeDoc === 'access' ? (
+                  <AccessRequestPreview
+                    googleAppsScriptUrl={googleAppsScriptUrl}
+                    name={formData.empName}
+                    dept={formData.empDept}
+                    job={formData.empJob}
+                    requestType="말소"
+                    effectiveDate={formData.resignDate}
                   />
-                </div>
+                ) : (
+                  <div style={{ overflow: 'hidden', borderRadius: '8px', backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                    <iframe
+                      src={`https://docs.google.com/document/d/${docTemplates[activeDoc]}/preview`}
+                      title="Document Preview"
+                      style={{ width: '100%', height: '450px', border: 'none', borderRadius: '8px' }}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

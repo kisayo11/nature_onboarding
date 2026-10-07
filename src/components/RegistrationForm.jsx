@@ -3,11 +3,13 @@ import { sendSmsLink, submitRegistration } from '../services/apiClient'
 import PrivacyConsentDocument from './PrivacyConsentDocument'
 import SignaturePad from './SignaturePad'
 import SubmissionProgress from './SubmissionProgress'
+import AccessRequestPreview from './AccessRequestPreview'
 
 const initialForm = {
   privacyConsent: '',
   trainingConsent: false,
   securityConsent: false,
+  accessConsent: false,
   name: '',
   job: '',
   hireDate: '',
@@ -49,8 +51,8 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [accessWarning, setAccessWarning] = useState('')
-  const [activeDocTab, setActiveDocTab] = useState('consent') // 'consent', 'training', 'privacy'
-  const [viewedDocs, setViewedDocs] = useState({ consent: true, training: false, privacy: false })
+  const [activeDocTab, setActiveDocTab] = useState('consent') // 'consent', 'training', 'privacy', 'access'
+  const [viewedDocs, setViewedDocs] = useState({ consent: true, training: false, privacy: false, access: false })
 
   const updateField = (event) => {
     const { name, value, type, checked } = event.target
@@ -65,10 +67,13 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
   const birthKey = formData.residentNumber.replace(/[^0-9]/g, '').slice(0, 6)
   const mobileSignUrl = `${window.location.origin}${window.location.pathname}?view=mobile-sign&type=register&name=${encodeURIComponent(formData.name)}&birth=${encodeURIComponent(birthKey)}`
 
+  const allDocsViewed = Object.values(viewedDocs).every(Boolean)
   const allConsented =
     formData.privacyConsent === '동의함' &&
     formData.trainingConsent &&
-    formData.securityConsent
+    formData.securityConsent &&
+    formData.accessConsent &&
+    allDocsViewed
 
   // Step 1 유효성 검사
   const validateStep1 = () => {
@@ -401,7 +406,7 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
               <section className="register-section">
                 <h2>3단계: 입사 필수 서류 확인 및 전자서명</h2>
                 <p className="consent-guide">
-                  원내 규정에 따른 3가지 필수 서류를 탭하여 확인하신 후, 동의 체크 및 하단 1회 전자서명을 진행해 주세요.
+                  원내 규정에 따른 입사서류 3종과 접근권한 부여요청서를 모두 확인한 후, 하단에서 한 번만 전자서명해 주세요.
                 </p>
 
                 {/* 3대 서류 탭 셀렉터 */}
@@ -426,6 +431,13 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                   >
                     <i className="ph-bold ph-lock-key"></i>
                     <span>개인정보서약서 {!viewedDocs.privacy && ' (미확인 ⚠️)'}</span>
+                  </div>
+                  <div
+                    className={`doc-tab ${activeDocTab === 'access' ? 'active' : (viewedDocs.access ? 'viewed' : 'not-viewed')}`}
+                    onClick={() => selectDocTab('access')}
+                  >
+                    <i className="ph-bold ph-identification-card"></i>
+                    <span>접근권한 부여요청서 {!viewedDocs.access && ' (미확인 ⚠️)'}</span>
                   </div>
                 </div>
 
@@ -484,6 +496,17 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                       </div>
                     </div>
                   )}
+
+                  {activeDocTab === 'access' && (
+                    <AccessRequestPreview
+                      googleAppsScriptUrl={googleAppsScriptUrl}
+                      name={formData.name}
+                      dept={formData.department === '기타' ? formData.customDepartment : formData.department}
+                      job={formData.job}
+                      requestType="부여"
+                      effectiveDate={formData.hireDate}
+                    />
+                  )}
                 </div>
 
                 {/* 3대 서류 동의 체크박스 */}
@@ -519,13 +542,24 @@ const RegistrationForm = ({ googleAppsScriptUrl }) => {
                     />
                     <span>[필수] 개인정보서약서 내용을 확인하였으며 환자 및 병원 정보보호 규정을 준수할 것을 서약합니다.</span>
                   </label>
+
+                  <label className="consent-check">
+                    <input
+                      type="checkbox"
+                      name="accessConsent"
+                      checked={formData.accessConsent}
+                      onChange={updateField}
+                      required
+                    />
+                    <span>[필수] 부서·직종별 접근권한 부여 내용을 확인했으며 동일 전자서명을 요청서에 사용하는 것에 동의합니다.</span>
+                  </label>
                 </div>
 
                 {/* 동의 완료 후 서명란 노출 */}
                 {allConsented ? (
                   <div className="register-signature" style={{ animation: 'fadeInSlideUp 0.3s ease' }}>
                     <h4 style={{ marginBottom: '0.75rem', color: '#0F766E' }}>
-                      <i className="ph-fill ph-pen-nib"></i> 통합 전자서명 (1회 서명으로 3종 서류에 일괄 날인됩니다)
+                      <i className="ph-fill ph-pen-nib"></i> 통합 전자서명 (1회 서명으로 입사서류 3종과 접근권한 요청서에 연결됩니다)
                     </h4>
                     <div className="mode-selector signature-methods">
                       <button type="button" onClick={() => { setSigMethod('pc'); setSignature('') }} className={`mode-tab ${sigMethod === 'pc' ? 'active' : ''}`}>
