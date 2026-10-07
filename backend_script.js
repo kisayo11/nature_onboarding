@@ -36,7 +36,6 @@ const ACCESS_RULE_SHEET_HEADERS = [
   "표준부서", "기준직종/세부업무", "목적", "대상", "작성", "수정", "열람", "출력", "출력조건",
   "부서별칭(|구분)", "직종별칭(|구분)", "기본규칙", "사용여부"
 ];
-const TEMP_PRIVACY_REISSUE_TOKEN_HASH = "9b7715e3cf868e3d7ed47ce7415284b6fb3238df31965790a0bc019333da133a";
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -532,7 +531,6 @@ function doPost(e) {
   }
 
   try {
-    if (data.action === "adminPrivacyReissue") return runAuthorizedPrivacyReissue(data);
     if (data.action === "lookupAccessEmployee") return lookupAccessEmployeeResponse(data);
     if (data.action === "saveAccessSignature") return saveAccessSignature(data);
     if (data.action === "saveSignatureOnly") return saveSignatureOnly(data);
@@ -603,131 +601,6 @@ function registerEmployee(data) {
     throw error;
   } finally {
     lock.releaseLock();
-  }
-}
-
-function runAuthorizedPrivacyReissue(data) {
-  const tokenHash = byteToHex(Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    String(data.token || ""),
-    Utilities.Charset.UTF_8
-  ));
-  if (tokenHash !== TEMP_PRIVACY_REISSUE_TOKEN_HASH) throw new Error("관리자 인증에 실패했습니다.");
-  if (!Array.isArray(data.items) || !data.items.length || data.items.length > 6) {
-    throw new Error("한 번에 1~6명의 재생성 자료가 필요합니다.");
-  }
-
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) throw new Error("다른 문서 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.");
-  const results = [];
-  try {
-    assertPrivacyTemplateReady(["privacy"]);
-    const sheet = getSpreadsheet().getSheetByName(ONBOARDING_SHEET);
-    if (!sheet) throw new Error("입사자 마스터 시트를 찾을 수 없습니다.");
-    ensureOnboardingResultHeaders(sheet);
-
-    data.items.forEach(function (item) {
-      let record;
-      try {
-        requireFields(item, ["name", "dept", "job", "birth", "phone", "date", "signatureUrl"]);
-        const submittedAt = parsePrivacyReissueDate(item.date);
-        record = buildPrivacyReissueRecord(sheet, item, submittedAt);
-        const folders = getStorageFolders(false, submittedAt);
-        archiveExactPrivacyFiles(record, folders);
-        const generated = regenerateOnboardingRow(record, ["privacy"], "지정 누락명단 관리자 재생성", "privacy-admin-20261007");
-        fillPrivacyReissueMasterRow(record, item);
-        results.push({ name: record.name, status: "완료", rowNumber: record.rowNumber, pdfUrl: generated.privacy.url });
-      } catch (error) {
-        results.push({ name: String(item && item.name || ""), status: "실패", message: error.message || String(error) });
-      }
-    });
-    SpreadsheetApp.flush();
-  } finally {
-    lock.releaseLock();
-  }
-  return jsonResponse({
-    result: results.some(function (item) { return item.status === "실패"; }) ? "partial" : "success",
-    completed: results.filter(function (item) { return item.status === "완료"; }).length,
-    failed: results.filter(function (item) { return item.status === "실패"; }).length,
-    items: results
-  });
-}
-
-function parsePrivacyReissueDate(value) {
-  const match = String(value || "").match(/^(\d{4})[-.]\s*(\d{1,2})[-.]\s*(\d{1,2})\.?$/);
-  if (!match) throw new Error("작성일은 YYYY-MM-DD 형식이어야 합니다.");
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0);
-  if (isNaN(date.getTime()) || date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2]) - 1 || date.getDate() !== Number(match[3])) {
-    throw new Error("작성일이 올바르지 않습니다.");
-  }
-  return date;
-}
-
-function buildPrivacyReissueRecord(sheet, item, submittedAt) {
-  const rows = sheet.getLastRow() >= 2
-    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getDisplayValues()
-    : [];
-  const normalizedName = normalizePersonName(item.name);
-  const targetBirth = normalizeDate(item.birth);
-  const nameMatches = [];
-  let rowNumber = 0;
-  rows.forEach(function (row, index) {
-    if (normalizePersonName(row[1]) !== normalizedName) return;
-    nameMatches.push(index + 2);
-    if (row[4] && normalizeDate(row[4]) === targetBirth) rowNumber = index + 2;
-  });
-  if (!rowNumber && nameMatches.length === 1) rowNumber = nameMatches[0];
-  if (!rowNumber && nameMatches.length > 1) throw new Error(`${item.name}님의 동명이인 행을 생년월일로 구분할 수 없습니다.`);
-  if (!rowNumber) rowNumber = Math.max(sheet.getLastRow() + 1, 2);
-
-  const current = sheet.getRange(rowNumber, 1, 1, 11).getDisplayValues()[0];
-  const signatureId = extractDriveFileId(item.signatureUrl);
-  if (!signatureId) throw new Error(`${item.name}님의 서명 파일 주소가 올바르지 않습니다.`);
-  DriveApp.getFileById(signatureId).getBlob();
-  const record = {
-    sheet: sheet,
-    rowNumber: rowNumber,
-    submittedAt: submittedAt,
-    name: String(item.name).trim(),
-    dept: String(item.dept).trim(),
-    job: String(item.job).trim(),
-    birth: targetBirth,
-    phone: String(item.phone).trim(),
-    docType: String(current[6] || "신규안전+개인정보").trim(),
-    signatureUrl: driveContentUrl(signatureId),
-    previousSafetyUrl: String(current[8] || "").trim(),
-    previousPrivacyUrl: String(current[9] || "").trim(),
-    previousConsentUrl: String(current[10] || "").trim(),
-    existingRow: Boolean(current[1])
-  };
-  record.recordKey = [record.rowNumber, record.name, Utilities.formatDate(submittedAt, TIME_ZONE, "yyyyMMdd")].join("|");
-  return record;
-}
-
-function archiveExactPrivacyFiles(record, folders) {
-  const dateText = Utilities.formatDate(record.submittedAt, TIME_ZONE, "yyyy. MM. dd.");
-  const baseName = `${sanitizeFileName(record.name)}_${sanitizeFileName(record.dept)}_개인정보서약_입사_${dateText}`;
-  const originalArchive = getOrCreateFolder(folders.original, "이전버전");
-  const pdfArchive = getOrCreateFolder(folders.pdf, "이전버전");
-  const originals = folders.original.getFilesByName(baseName);
-  while (originals.hasNext()) originals.next().moveTo(originalArchive);
-  const pdfs = folders.pdf.getFilesByName(baseName + ".pdf");
-  while (pdfs.hasNext()) pdfs.next().moveTo(pdfArchive);
-}
-
-function fillPrivacyReissueMasterRow(record, item) {
-  const sheet = record.sheet;
-  if (!record.existingRow) {
-    sheet.getRange(record.rowNumber, 1, 1, 8).setValues([[
-      record.submittedAt, record.name, record.dept, record.job, record.birth, record.phone,
-      record.docType, record.signatureUrl
-    ]]);
-    return;
-  }
-  const current = sheet.getRange(record.rowNumber, 1, 1, 8).getDisplayValues()[0];
-  const fallbackValues = ["", record.name, record.dept, record.job, record.birth, record.phone, record.docType, record.signatureUrl];
-  for (let index = 1; index < fallbackValues.length; index++) {
-    if (!String(current[index] || "").trim()) sheet.getRange(record.rowNumber, index + 1).setValue(fallbackValues[index]);
   }
 }
 
