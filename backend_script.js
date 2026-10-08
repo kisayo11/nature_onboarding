@@ -717,7 +717,7 @@ function accessRowRecord(sheet, rowNumber, row) {
     reason: String(row[3] || "").trim(),
     job: String(row[6] || "").trim(),
     dept: String(row[7] || "").trim(),
-    birthKey: String(row[10] || "").replace(/[^0-9]/g, "").slice(0, 6),
+    birthKey: privacyBirthKey(row[10]) || privacyBirthKey(row[9]),
     date: String(row[12] || "").trim(),
     status: String(row[13] || "").trim()
   };
@@ -1087,7 +1087,7 @@ function employeeKey(name, dept) {
 function buildEmployeeBirthIndex() {
   const result = {};
   const add = function (name, dept, birthValue) {
-    const birthKey = String(birthValue || "").replace(/[^0-9]/g, "").slice(0, 6);
+    const birthKey = privacyBirthKey(birthValue);
     if (!normalizePersonName(name) || !normalizeDepartment(dept) || birthKey.length !== 6) return;
     const key = employeeKey(name, dept);
     if (!result[key]) result[key] = birthKey;
@@ -1522,7 +1522,7 @@ function collectSignatureImages(folder, candidates, candidateIds, metadataById, 
   const files = folder.getFiles();
   while (files.hasNext()) {
     const file = files.next();
-    if (candidateIds[file.getId()] || file.getMimeType().indexOf("image/") !== 0 || file.getName().indexOf("서명") === -1) continue;
+    if (candidateIds[file.getId()] || file.getMimeType().indexOf("image/") !== 0) continue;
     const metadata = metadataById[file.getId()] || {};
     const employeeMetadata = inferEmployeeMetadataFromSignatureName(file.getName(), employeeMetadataByName);
     const candidate = signatureCandidate(file, metadata, employeeMetadata);
@@ -1562,7 +1562,7 @@ function cacheResolvedAccessSignatures(records, candidates, metadataById) {
   const existingRows = sheet.getDataRange().getDisplayValues();
   const existingKeys = {};
   existingRows.slice(1).forEach(function (row) {
-    existingKeys[employeeKey(row[1], row[2]) + "|" + String(row[3] || "").replace(/[^0-9]/g, "").slice(0, 6)] = true;
+    existingKeys[employeeKey(row[1], row[2]) + "|" + privacyBirthKey(row[3])] = true;
   });
   const additions = [];
 
@@ -1605,7 +1605,7 @@ function loadSignatureMetadataById() {
         name: String(rows[i][layout.nameIndex] || "").trim(),
         dept: normalizeDepartment(rows[i][layout.deptIndex]),
         birthKey: layout.birthIndex >= 0
-          ? String(rows[i][layout.birthIndex] || "").replace(/[^0-9]/g, "").slice(0, 6)
+          ? privacyBirthKey(rows[i][layout.birthIndex])
           : ""
       });
     }
@@ -1615,12 +1615,20 @@ function loadSignatureMetadataById() {
   const educationSheet = educationSpreadsheet.getSheetByName(EDUCATION_SIGNATURE_SHEET);
   if (educationSheet && educationSheet.getLastRow() >= 2) {
     const rows = educationSheet.getDataRange().getDisplayValues();
+    const headers = rows[0].map(privacyRosterHeaderKey);
+    const deptIndex = privacyRosterColumnIndex(headers, ["부서", "소속"]);
+    const nameIndex = privacyRosterColumnIndex(headers, ["성명", "이름"]);
+    const signatureIndex = privacyRosterColumnIndex(headers, ["서명이미지링크", "서명이미지", "서명링크"]);
+    if (deptIndex === -1 || nameIndex === -1 || signatureIndex === -1) {
+      Logger.log("교육 서명_기록 시트에서 부서/성명/서명이미지링크 헤더를 찾을 수 없습니다.");
+      return metadata;
+    }
     for (let i = 1; i < rows.length; i++) {
-      const id = extractDriveFileId(rows[i][8]);
+      const id = extractDriveFileId(rows[i][signatureIndex]);
       if (!id) continue;
       metadata[id] = mergeSignatureMetadata(metadata[id], {
-        name: String(rows[i][7] || "").trim(),
-        dept: normalizeDepartment(rows[i][5]),
+        name: String(rows[i][nameIndex] || "").trim(),
+        dept: normalizeDepartment(rows[i][deptIndex]),
         birthKey: ""
       });
     }
@@ -1650,7 +1658,7 @@ function buildAccessEmployeeMetadataByName() {
       if (!aggregated[key]) aggregated[key] = { names: [], depts: [], birthKeys: [] };
       aggregated[key].names.push(name);
       const dept = normalizeDepartment(row[7]);
-      const birthKey = String(row[10] || "").replace(/[^0-9]/g, "").slice(0, 6);
+      const birthKey = privacyBirthKey(row[10]) || privacyBirthKey(row[9]);
       if (dept) aggregated[key].depts.push(dept);
       if (birthKey.length === 6) aggregated[key].birthKeys.push(birthKey);
     });
