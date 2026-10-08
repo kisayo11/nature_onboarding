@@ -1907,12 +1907,20 @@ function generatePrivacyConsentArchive(year) {
     const outputDoc = DocumentApp.openById(docFile.getId());
     const outputBody = outputDoc.getBody();
     outputBody.clear();
+    outputBody.setMarginBottom(28);
     const signatureBlobCache = {};
 
     signedRecords.forEach(function (record, index) {
-      if (index > 0) outputBody.appendPageBreak();
       appendPrivacyConsentTemplateBody(outputBody, templateBody);
-      populatePrivacyConsentPage(outputBody, record, record.signatureMatch.candidate, signatureBlobCache);
+      const signatureParagraph = populatePrivacyConsentPage(
+        outputBody,
+        record,
+        record.signatureMatch.candidate,
+        signatureBlobCache
+      );
+      // 별도 페이지 나누기 문단은 문서 끝에서 다음 장으로 밀리며 백지를 만든다.
+      // 서명 문단 안에서 바로 나누면 다음 직원은 항상 새 페이지에서 시작한다.
+      if (index < signedRecords.length - 1) signatureParagraph.appendPageBreak();
     });
     outputDoc.saveAndClose();
 
@@ -2305,16 +2313,33 @@ function populatePrivacyConsentPage(body, record, signatureCandidate, signatureB
   textElement.deleteText(signatureLocation.getStartOffset(), signatureLocation.getEndOffsetInclusive());
   const signatureBlob = signatureBlobCache[signatureCandidate.id] || signatureCandidate.file.getBlob();
   signatureBlobCache[signatureCandidate.id] = signatureBlob;
-  textElement.getParent().asParagraph().appendInlineImage(signatureBlob).setWidth(100).setHeight(60);
+  const signatureParagraph = textElement.getParent().asParagraph();
+  signatureParagraph.setSpacingBefore(0).setSpacingAfter(0).setLineSpacing(1);
+  signatureParagraph.appendInlineImage(signatureBlob).setWidth(80).setHeight(40);
+  return signatureParagraph;
 }
 
 function validatePrivacyConsentArchive(documentId, employeeCount) {
-  const text = DocumentApp.openById(documentId).getBody().getText();
+  const body = DocumentApp.openById(documentId).getBody();
+  const text = body.getText();
   if (/\{\{\s*(이름|날짜|서명)\s*\}\}/.test(text)) throw new Error("통합 개인정보동의서에 미치환 태그가 남아 있습니다.");
   const checkedCount = (text.match(/■동의함 □동의하지 않음/g) || []).length;
   if (checkedCount !== employeeCount * 3) {
     throw new Error(`통합 개인정보동의서 동의 체크 수가 올바르지 않습니다. 예상 ${employeeCount * 3}개 / 실제 ${checkedCount}개`);
   }
+  const pageBreakCount = countDocumentElements(body, DocumentApp.ElementType.PAGE_BREAK);
+  if (pageBreakCount !== Math.max(0, employeeCount - 1)) {
+    throw new Error(`통합 개인정보동의서 페이지 구분 수가 올바르지 않습니다. 예상 ${Math.max(0, employeeCount - 1)}개 / 실제 ${pageBreakCount}개`);
+  }
+}
+
+function countDocumentElements(element, elementType) {
+  let count = element.getType && element.getType() === elementType ? 1 : 0;
+  if (!element.getNumChildren) return count;
+  for (let index = 0; index < element.getNumChildren(); index++) {
+    count += countDocumentElements(element.getChild(index), elementType);
+  }
+  return count;
 }
 
 function getPrivacyConsentArchiveFolder(year) {
