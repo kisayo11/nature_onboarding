@@ -5,6 +5,7 @@ import { lookupAccessEmployee, submitAccessSignature } from '../services/apiClie
 const AccessSignatureView = ({ googleAppsScriptUrl }) => {
   const [name, setName] = useState('')
   const [dept, setDept] = useState('')
+  const [birth, setBirth] = useState('')
   const [employee, setEmployee] = useState(null)
   const [signature, setSignature] = useState('')
   const [message, setMessage] = useState('')
@@ -13,8 +14,8 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
 
   const handleLookup = async (event) => {
     event.preventDefault()
-    if (!name.trim() || !dept.trim()) {
-      setMessage('이름과 부서를 모두 입력해 주세요.')
+    if (!name.trim() || !dept.trim() || !/^\d{6}$/.test(birth)) {
+      setMessage('이름, 부서, 생년월일 6자리를 모두 입력해 주세요.')
       return
     }
     setIsLoading(true)
@@ -25,7 +26,8 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
       const result = await lookupAccessEmployee({
         action: 'lookupAccessEmployee',
         name: name.trim(),
-        dept: dept.trim()
+        dept: dept.trim(),
+        birth
       })
       if (!result.found) {
         setMessage(result.message || '직원 정보를 찾을 수 없습니다.')
@@ -35,7 +37,7 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
         setMessage('이미 등록된 서명이 있습니다. 추가 서명은 필요하지 않습니다.')
         return
       }
-      setEmployee({ name: result.name, dept: result.dept })
+      setEmployee({ name: result.name, dept: result.dept, birth })
     } catch (error) {
       setMessage(error.message || '직원 조회 중 오류가 발생했습니다.')
     } finally {
@@ -55,6 +57,7 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
         action: 'saveAccessSignature',
         name: employee.name,
         dept: employee.dept,
+        birth: employee.birth,
         signature
       })
       setIsDone(true)
@@ -71,7 +74,7 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
         <i className="ph-fill ph-check-circle" style={{ fontSize: '5rem', color: '#10B981', display: 'block', marginBottom: '1.5rem' }} />
         <h2 style={{ marginBottom: '1rem' }}>접근권한 요청서 서명 등록 완료</h2>
         <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-          서명이 안전하게 저장되었고 접근권한 관리대장의 서명 상태가 <strong>있음</strong>으로 변경되었습니다.
+          서명이 안전하게 저장되었습니다. 담당자가 개인정보동의서 누락명단을 갱신하면 반영됩니다.
         </p>
       </div>
     )
@@ -84,7 +87,7 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
           <i className="ph-fill ph-signature" />
         </div>
         <h1 style={{ fontSize: '1.8rem', marginBottom: '0.6rem' }}>접근권한 요청서 서명 등록</h1>
-        <p style={{ color: 'var(--text-muted)' }}>담당자 확인 아래 이름과 소속 부서를 입력해 주세요.</p>
+        <p style={{ color: 'var(--text-muted)' }}>담당자 확인 아래 이름, 소속 부서, 생년월일 6자리를 입력해 주세요.</p>
       </header>
 
       <form onSubmit={handleLookup} className="step-card visible" style={{ padding: '1.25rem', marginBottom: '1.25rem' }}>
@@ -95,6 +98,19 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
         <div className="form-group">
           <label htmlFor="access-dept">부서</label>
           <input id="access-dept" value={dept} onChange={(event) => setDept(event.target.value)} disabled={Boolean(employee)} autoComplete="off" placeholder="예: 간호부, 원무과, 재활치료센터" />
+        </div>
+        <div className="form-group">
+          <label htmlFor="access-birth">생년월일 6자리</label>
+          <input
+            id="access-birth"
+            value={birth}
+            onChange={(event) => setBirth(event.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+            disabled={Boolean(employee)}
+            autoComplete="off"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="예: 900101"
+          />
         </div>
         {!employee && (
           <button type="submit" className="btn-primary" disabled={isLoading} style={{ width: '100%' }}>
@@ -116,7 +132,7 @@ const AccessSignatureView = ({ googleAppsScriptUrl }) => {
           </p>
           <SignaturePad
             name={employee.name}
-            birth=""
+            birth={employee.birth}
             googleAppsScriptUrl={googleAppsScriptUrl}
             onSignatureChange={setSignature}
           />

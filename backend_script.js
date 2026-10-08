@@ -622,60 +622,60 @@ function registerEmployee(data) {
 }
 
 function lookupAccessEmployeeResponse(data) {
-  requireFields(data, ["name", "dept"]);
-  const lookup = findAccessEmployee(data.name, data.dept);
+  requireFields(data, ["name", "dept", "birth"]);
+  const birthKey = privacyBirthKey(data.birth);
+  if (!birthKey) throw new Error("생년월일 6자리를 정확히 입력해 주세요.");
+  const lookup = findSignatureRegistrationEmployee(data.name, data.dept, birthKey);
   if (!lookup.matches.length) {
+    let message = "이름과 부서가 일치하는 직원을 찾을 수 없습니다.";
+    if (lookup.departmentMatches.length) {
+      message = "생년월일이 직원 정보와 일치하지 않습니다. 담당자에게 문의해 주세요.";
+    } else if (lookup.nameMatches.length) {
+      message = "이름은 확인되지만 부서 정보가 일치하지 않습니다. 담당자에게 문의해 주세요.";
+    }
     return jsonResponse({
       result: "success",
       found: false,
       status: lookup.nameMatches.length ? "직원정보불일치" : "없음",
-      message: lookup.nameMatches.length
-        ? "이름은 확인되지만 부서 정보가 일치하지 않습니다. 담당자에게 문의해 주세요."
-        : "이름과 부서가 일치하는 직원을 찾을 수 없습니다."
+      message: message
     });
   }
 
-  const birthKeys = uniqueValues(lookup.matches.map(function (match) { return match.birthKey; }).filter(Boolean));
-  if (birthKeys.length !== 1) {
-    return jsonResponse({
-      result: "success",
-      found: false,
-      status: "직원정보불일치",
-      message: "동일한 이름과 부서의 직원 정보가 둘 이상입니다. 담당자 확인이 필요합니다."
-    });
-  }
-
-  const alreadySigned = lookup.matches.some(function (match) { return match.status === "있음"; });
+  const employee = lookup.matches[0];
+  const alreadySigned = lookup.accessRecords.some(function (match) { return match.status === "있음"; }) ||
+    hasRecordedAccessSignature(employee.name, employee.dept, birthKey);
   return jsonResponse({
     result: "success",
     found: true,
     alreadySigned: alreadySigned,
-    name: lookup.matches[0].name,
-    dept: lookup.matches[0].dept,
+    name: employee.name,
+    dept: employee.dept,
     message: alreadySigned ? "이미 등록된 서명이 있습니다." : "직원 정보가 확인되었습니다."
   });
 }
 
 function saveAccessSignature(data) {
-  requireFields(data, ["name", "dept", "signature"]);
+  requireFields(data, ["name", "dept", "birth", "signature"]);
+  const birthKey = privacyBirthKey(data.birth);
+  if (!birthKey) throw new Error("생년월일 6자리를 정확히 입력해 주세요.");
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw new Error("다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.");
   try {
-    const lookup = findAccessEmployee(data.name, data.dept);
+    const lookup = findSignatureRegistrationEmployee(data.name, data.dept, birthKey);
     if (!lookup.matches.length) {
-      updateNamedAccessRows(lookup.nameMatches, "직원정보불일치");
+      updateNamedAccessRows(lookup.accessNameMatches, "직원정보불일치");
+      if (lookup.departmentMatches.length) throw new Error("생년월일이 직원 정보와 일치하지 않습니다.");
       throw new Error("이름과 부서가 일치하는 직원을 찾을 수 없습니다.");
     }
-    if (lookup.matches.some(function (match) { return match.status === "있음"; })) {
+    const employee = lookup.matches[0];
+    if (lookup.accessRecords.some(function (match) { return match.status === "있음"; }) ||
+        hasRecordedAccessSignature(employee.name, employee.dept, birthKey)) {
       throw new Error("이미 등록된 서명이 있습니다. 재서명은 필요하지 않습니다.");
     }
 
-    const birthKeys = uniqueValues(lookup.matches.map(function (match) { return match.birthKey; }).filter(Boolean));
-    if (birthKeys.length !== 1) throw new Error("직원 생년월일 정보를 하나로 확인할 수 없습니다.");
-
-    const saved = saveSignature(lookup.matches[0].name, birthKeys[0], data.signature);
-    recordAccessSignature(lookup.matches[0].name, lookup.matches[0].dept, birthKeys[0], saved.url);
-    updateNamedAccessRows(lookup.matches, "있음");
+    const saved = saveSignature(employee.name, birthKey, data.signature);
+    recordAccessSignature(employee.name, employee.dept, birthKey, saved.url);
+    updateNamedAccessRows(lookup.accessRecords, "있음");
     SpreadsheetApp.flush();
     return jsonResponse({ result: "success", driveUrl: saved.url, status: "있음" });
   } finally {
@@ -707,8 +707,61 @@ function findAccessEmployee(name, dept) {
   return { matches: matches, nameMatches: nameMatches };
 }
 
+function findSignatureRegistrationEmployee(name, dept, birthKey) {
+  const accessLookup = findAccessEmployee(name, dept);
+  const privacyLookup = findPrivacyConsentEmployee(name, dept);
+  const departmentMatches = accessLookup.matches.length ? accessLookup.matches : privacyLookup.matches;
+  const matches = departmentMatches.filter(function (record) {
+    return !record.birthKey || record.birthKey === birthKey;
+  });
+  const accessRecords = matches.filter(function (record) { return record.sourceType === "access"; });
+  return {
+    matches: matches,
+    departmentMatches: departmentMatches,
+    accessRecords: accessRecords,
+    accessNameMatches: accessLookup.nameMatches,
+    nameMatches: accessLookup.nameMatches.concat(privacyLookup.nameMatches)
+  };
+}
+
+function findPrivacyConsentEmployee(name, dept) {
+  const targetName = normalizePersonName(name);
+  const targetDept = normalizeDepartment(dept);
+  const birthIndex = buildPrivacyEmployeeBirthIndex();
+  const records = [];
+  ["2025", "2026"].forEach(function (year) {
+    buildPrivacyConsentRoster(year).forEach(function (record) {
+      const employeeBirth = birthIndex.byEmployee[employeeKey(record.name, record.dept)] || "";
+      const nameBirths = birthIndex.byName[normalizePersonName(record.name)] || [];
+      record.birthKey = record.birthKey || employeeBirth || (nameBirths.length === 1 ? nameBirths[0] : "");
+      record.sourceType = "privacy";
+      records.push(record);
+    });
+  });
+  const nameMatches = deduplicatePrivacyConsentRoster(records).filter(function (record) {
+    return normalizePersonName(record.name) === targetName;
+  });
+  const matches = nameMatches.filter(function (record) {
+    return normalizeDepartment(record.dept) === targetDept;
+  });
+  return { matches: matches, nameMatches: nameMatches };
+}
+
+function hasRecordedAccessSignature(name, dept, birthKey) {
+  const sheet = getSpreadsheet().getSheetByName(ACCESS_SIGNATURE_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return false;
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getDisplayValues();
+  return rows.some(function (row) {
+    return normalizePersonName(row[1]) === normalizePersonName(name) &&
+      normalizeDepartment(row[2]) === normalizeDepartment(dept) &&
+      privacyBirthKey(row[3]) === birthKey &&
+      !!extractDriveFileId(row[4]);
+  });
+}
+
 function accessRowRecord(sheet, rowNumber, row) {
   return {
+    sourceType: "access",
     sheet: sheet,
     rowNumber: rowNumber,
     values: row,
