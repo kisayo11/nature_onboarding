@@ -23,6 +23,7 @@ const ONBOARDING_SHEET = "입사자(Onboarding)";
 const OFFBOARDING_SHEET = "퇴사자(Offboarding)";
 const ACCESS_SIGNATURE_SHEET = "접근권한 서명";
 const ACCESS_RULE_SHEET = "접근권한 기준";
+const PRIVACY_CONSENT_MISSING_SHEET = "개인정보동의서 누락명단";
 const CONFIG_SHEET = "솔라피&슬랙 설정";
 const LOG_SHEET = "처리로그";
 const REISSUE_LOG_SHEET = "문서재생성로그";
@@ -30,6 +31,7 @@ const TIME_ZONE = "Asia/Seoul";
 const PRIVACY_REISSUE_VERSION = "privacy-date-style-v3";
 const REISSUE_BATCH_SIZE = 20;
 const ACCESS_LEGACY_SCAN_CACHE_MS = 6 * 60 * 60 * 1000;
+const PRIVACY_SIGNATURE_URL = "https://kisayo11.github.io/nature_onboarding/?view=access-signature";
 const ACCESS_RULE_START_COLUMN = 15; // O열
 const ACCESS_RULE_HEADERS = ["권한기준", "대상", "작성", "수정", "열람", "출력", "출력조건"];
 const ACCESS_RULE_SHEET_HEADERS = [
@@ -46,12 +48,18 @@ function onOpen() {
     .addItem("선택 행 전체 입사서류 재생성", "regenerateSelectedOnboardingDocuments")
     .addSeparator()
     .addItem("기존 개인정보동의서 링크 동기화", "syncOnboardingConsentLinks");
+  const privacyArchiveMenu = ui.createMenu("개인정보동의서 연도별 통합")
+    .addItem("서명 누락명단 갱신", "refreshPrivacyConsentStatuses")
+    .addSeparator()
+    .addItem("2025년 통합문서 생성/재생성", "generatePrivacyConsents2025")
+    .addItem("2026년 통합문서 생성/재생성", "generatePrivacyConsents2026");
 
   ui
     .createMenu("🌟 네이처 자동화")
     .addItem("시트 및 설정 초기화", "initializeAllSheets")
     .addSeparator()
     .addSubMenu(reissueMenu)
+    .addSubMenu(privacyArchiveMenu)
     .addSeparator()
     .addItem("접근권한 기준표 생성/동기화", "syncAccessRuleAutomation")
     .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
@@ -73,6 +81,7 @@ function initializeAllSheets() {
   ensureSheet(ss, ACCESS_SIGNATURE_SHEET, [
     "타임스탬프", "이름", "표준부서", "생년월일6자리", "서명이미지"
   ]);
+  ensurePrivacyConsentMissingSheet(ss);
   ensureLogSheet(ss);
   ensureReissueLogSheet(ss);
 
@@ -121,6 +130,14 @@ function generateAccessRequests2025() {
 
 function generateAccessRequests2026() {
   return generateAccessRequestArchive("2026");
+}
+
+function generatePrivacyConsents2025() {
+  return generatePrivacyConsentArchive("2025");
+}
+
+function generatePrivacyConsents2026() {
+  return generatePrivacyConsentArchive("2026");
 }
 
 function regenerateSelectedOnboardingPrivacy() {
@@ -1779,6 +1796,471 @@ function generateAccessRequestArchive(year) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function refreshPrivacyConsentStatuses() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 개인정보동의서 작업이 진행 중입니다.");
+  try {
+    const resolved = resolvePrivacyConsentRecords(["2025", "2026"], { forceLegacyScan: true });
+    writePrivacyConsentMissingSheet(resolved);
+    const summary = privacyConsentResolutionSummary(resolved);
+    getSpreadsheet().toast(
+      `서명 확인 ${summary.signed}명 / 누락 ${summary.missing}명`,
+      "개인정보동의서 서명 상태",
+      8
+    );
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function generatePrivacyConsentArchive(year) {
+  const targetYear = String(year);
+  if (["2025", "2026"].indexOf(targetYear) === -1) throw new Error("지원하는 연도는 2025년과 2026년입니다.");
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 개인정보동의서 작업이 진행 중입니다.");
+  const createdFileIds = [];
+  try {
+    const resolved = resolvePrivacyConsentRecords(["2025", "2026"], { cacheKey: "privacy_archive" });
+    writePrivacyConsentMissingSheet(resolved);
+    const yearRecords = resolved.byYear[targetYear] || [];
+    const signedRecords = yearRecords.filter(function (record) { return !!record.signatureMatch.candidate; });
+    const missingCount = yearRecords.length - signedRecords.length;
+    if (!yearRecords.length) throw new Error(`${targetYear}년 입사자가 재직자/퇴사자현황 시트에서 확인되지 않습니다.`);
+    if (!signedRecords.length) {
+      throw new Error(`${targetYear}년 서명이 확인된 입사자가 없습니다. 개인정보동의서 누락명단을 확인해 주세요.`);
+    }
+
+    const templateDoc = DocumentApp.openById(TEMPLATE_REGISTRATION_CONSENT_ID);
+    const templateBody = templateDoc.getBody();
+    assertPrivacyConsentArchiveTemplate(templateBody);
+
+    const outputFolder = getPrivacyConsentArchiveFolder(targetYear);
+    const createdAt = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
+    const baseName = `${targetYear}년 개인정보 수집·이용 동의서_통합_${createdAt}`;
+    const docFile = DriveApp.getFileById(TEMPLATE_REGISTRATION_CONSENT_ID).makeCopy(baseName, outputFolder);
+    createdFileIds.push(docFile.getId());
+    const outputDoc = DocumentApp.openById(docFile.getId());
+    const outputBody = outputDoc.getBody();
+    outputBody.clear();
+    const signatureBlobCache = {};
+
+    signedRecords.forEach(function (record, index) {
+      if (index > 0) outputBody.appendPageBreak();
+      appendPrivacyConsentTemplateBody(outputBody, templateBody);
+      populatePrivacyConsentPage(outputBody, record, record.signatureMatch.candidate, signatureBlobCache);
+    });
+    outputDoc.saveAndClose();
+
+    validatePrivacyConsentArchive(docFile.getId(), signedRecords.length);
+    const pdfFile = outputFolder.createFile(docFile.getAs(MimeType.PDF)).setName(baseName + ".pdf");
+    createdFileIds.push(pdfFile.getId());
+    ensureLogSheet(getSpreadsheet()).appendRow([
+      Utilities.getUuid(), new Date(), new Date(), `개인정보동의서 ${targetYear}`, "연도별 통합", "완료", "PDF 생성",
+      "", docFile.getId(), pdfFile.getId(), "", `서명 ${signedRecords.length}명 / 누락 ${missingCount}명`, ""
+    ]);
+    getSpreadsheet().toast(
+      `${targetYear}년 서명 ${signedRecords.length}명 통합 완료 / 누락 ${missingCount}명`,
+      "개인정보동의서",
+      8
+    );
+    return {
+      docUrl: docFile.getUrl(),
+      pdfUrl: pdfFile.getUrl(),
+      signedCount: signedRecords.length,
+      missingCount: missingCount
+    };
+  } catch (error) {
+    trashFiles(createdFileIds);
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function resolvePrivacyConsentRecords(years, options) {
+  options = options || {};
+  const birthIndex = buildPrivacyEmployeeBirthIndex();
+
+  const records = [];
+  years.forEach(function (year) {
+    buildPrivacyConsentRoster(String(year)).forEach(function (record) {
+      const employeeBirth = birthIndex.byEmployee[employeeKey(record.name, record.dept)] || "";
+      const nameBirths = birthIndex.byName[normalizePersonName(record.name)] || [];
+      record.birthKey = record.birthKey || employeeBirth || (nameBirths.length === 1 ? nameBirths[0] : "");
+      record.requestType = "접근권한 부여";
+      record.reason = "입사";
+      records.push(record);
+    });
+  });
+
+  const deduped = deduplicatePrivacyConsentRoster(records);
+  const nameCounts = {};
+  deduped.forEach(function (record) {
+    const nameKey = normalizePersonName(record.name);
+    nameCounts[nameKey] = (nameCounts[nameKey] || 0) + 1;
+  });
+  const signatureIndex = buildAccessSignatureIndex(deduped, {
+    forceLegacyScan: options.forceLegacyScan === true,
+    cacheKey: options.cacheKey || "privacy_status"
+  });
+  const byYear = {};
+  years.forEach(function (year) { byYear[String(year)] = []; });
+  deduped.forEach(function (record) {
+    record.signatureMatch = selectPrivacyConsentSignature(
+      record,
+      signatureIndex,
+      (nameCounts[normalizePersonName(record.name)] || 0) > 1
+    );
+    byYear[record.year].push(record);
+  });
+  Object.keys(byYear).forEach(function (year) {
+    byYear[year].sort(function (a, b) {
+      if (a.dateParts.key !== b.dateParts.key) return a.dateParts.key.localeCompare(b.dateParts.key);
+      return a.name.localeCompare(b.name, "ko");
+    });
+  });
+  return { byYear: byYear, records: deduped };
+}
+
+function buildPrivacyEmployeeBirthIndex() {
+  const entries = {};
+  const add = function (name, dept, birthValue, priority) {
+    const nameKey = normalizePersonName(name);
+    const deptKey = normalizeDepartment(dept);
+    const birthKey = privacyBirthKey(birthValue);
+    if (!nameKey || !birthKey) return;
+    const key = nameKey + "|" + deptKey;
+    if (!entries[key] || priority > entries[key].priority) {
+      entries[key] = { birthKey: birthKey, priority: priority };
+    } else if (priority === entries[key].priority && entries[key].birthKey !== birthKey) {
+      entries[key].ambiguous = true;
+    }
+  };
+
+  const master = getSpreadsheet();
+  const signatureSheet = master.getSheetByName(ACCESS_SIGNATURE_SHEET);
+  if (signatureSheet && signatureSheet.getLastRow() >= 2) {
+    signatureSheet.getDataRange().getValues().slice(1).forEach(function (row) {
+      add(row[1], row[2], row[3], 4);
+    });
+  }
+  const onboarding = master.getSheetByName(ONBOARDING_SHEET);
+  if (onboarding && onboarding.getLastRow() >= 2) {
+    onboarding.getDataRange().getValues().slice(1).forEach(function (row) {
+      add(row[1], row[2], row[4], 3);
+    });
+  }
+  try {
+    const registration = SpreadsheetApp.openById(REGISTRATION_SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+    if (registration && registration.getLastRow() >= 2) {
+      registration.getDataRange().getValues().slice(1).forEach(function (row) {
+        add(row[2], row[3], row[5], 3);
+      });
+    }
+  } catch (error) {
+    Logger.log("개인정보동의서 생년월일 인사응답 조회 실패: " + error);
+  }
+  const accessSpreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+  accessSpreadsheet.getSheets().forEach(function (sheet) {
+    if (!/^\d{4}$/.test(sheet.getName()) || sheet.getLastRow() < 2) return;
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getValues().forEach(function (row) {
+      const birthValue = privacyBirthKey(row[10]) ? row[10] : row[9];
+      add(row[1], row[7], birthValue, 1);
+    });
+  });
+
+  const byEmployee = {};
+  const byName = {};
+  Object.keys(entries).forEach(function (key) {
+    const entry = entries[key];
+    if (entry.ambiguous) return;
+    byEmployee[key] = entry.birthKey;
+    const nameKey = key.split("|")[0];
+    if (!byName[nameKey]) byName[nameKey] = [];
+    if (byName[nameKey].indexOf(entry.birthKey) === -1) byName[nameKey].push(entry.birthKey);
+  });
+  return { byEmployee: byEmployee, byName: byName };
+}
+
+function privacyBirthKey(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, TIME_ZONE, "yyMMdd");
+  }
+  const text = String(value || "").trim();
+  const fullDate = text.match(/(?:19|20)(\d{2})\D*(\d{1,2})\D*(\d{1,2})/);
+  if (fullDate) {
+    const candidate = fullDate[1] + ("0" + fullDate[2]).slice(-2) + ("0" + fullDate[3]).slice(-2);
+    return isPlausibleBirthKey(candidate) ? candidate : "";
+  }
+  const digits = text.replace(/[^0-9]/g, "");
+  const candidate = digits.slice(0, 6);
+  return isPlausibleBirthKey(candidate) ? candidate : "";
+}
+
+function isPlausibleBirthKey(value) {
+  if (!/^\d{6}$/.test(String(value || ""))) return false;
+  const month = Number(String(value).slice(2, 4));
+  const day = Number(String(value).slice(4, 6));
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31;
+}
+
+function buildPrivacyConsentRoster(year) {
+  const spreadsheet = getSpreadsheet();
+  const result = [];
+  [
+    { sheetName: "재직자현황", employmentStatus: "재직자" },
+    { sheetName: "퇴사자현황", employmentStatus: "퇴사자" }
+  ].forEach(function (source) {
+    const sheet = spreadsheet.getSheetByName(source.sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    readPrivacyRosterSheet(sheet, source.employmentStatus).forEach(function (record) {
+      if (record.year === year) result.push(record);
+    });
+  });
+  return result;
+}
+
+function readPrivacyRosterSheet(sheet, employmentStatus) {
+  const values = sheet.getDataRange().getValues();
+  const maxHeaderRows = Math.min(values.length, 10);
+  let headerRowIndex = -1;
+  let headers = [];
+  for (let rowIndex = 0; rowIndex < maxHeaderRows; rowIndex++) {
+    const candidate = values[rowIndex].map(privacyRosterHeaderKey);
+    if (candidate.indexOf("이름") !== -1 && candidate.indexOf("입사일") !== -1) {
+      headerRowIndex = rowIndex;
+      headers = candidate;
+      break;
+    }
+  }
+  if (headerRowIndex === -1) throw new Error(`${sheet.getName()} 시트에서 이름/입사일 헤더를 찾을 수 없습니다.`);
+
+  const nameIndex = privacyRosterColumnIndex(headers, ["이름", "성명"]);
+  const hireDateIndex = privacyRosterColumnIndex(headers, ["입사일", "입사일자"]);
+  const deptIndex = privacyRosterColumnIndex(headers, ["부서", "소속"]);
+  const dept2Index = privacyRosterColumnIndex(headers, ["부서2", "소속2"]);
+  const jobIndex = privacyRosterColumnIndex(headers, ["직종", "직위"]);
+  const birthIndex = privacyRosterColumnIndex(headers, ["생년월일", "주민등록번호", "주민번호"]);
+  const result = [];
+
+  for (let rowIndex = headerRowIndex + 1; rowIndex < values.length; rowIndex++) {
+    const row = values[rowIndex];
+    const name = nameIndex >= 0 ? String(row[nameIndex] || "").trim() : "";
+    if (!name) continue;
+    const dateParts = accessDateParts(row[hireDateIndex]);
+    if (!dateParts) continue;
+    const department = deptIndex >= 0 && String(row[deptIndex] || "").trim()
+      ? String(row[deptIndex]).trim()
+      : (dept2Index >= 0 ? String(row[dept2Index] || "").trim() : "");
+    result.push({
+      year: dateParts.year,
+      name: name,
+      dept: department,
+      job: jobIndex >= 0 ? String(row[jobIndex] || "").trim() : "",
+      birthKey: birthIndex >= 0 ? privacyBirthKey(row[birthIndex]) : "",
+      dateParts: dateParts,
+      hireDate: privacyDateFromParts(dateParts),
+      employmentStatus: employmentStatus,
+      sourceSheet: sheet.getName(),
+      sourceRow: rowIndex + 1
+    });
+  }
+  return result;
+}
+
+function privacyRosterHeaderKey(value) {
+  return String(value || "").replace(/[\s()]/g, "").trim();
+}
+
+function privacyRosterColumnIndex(headers, aliases) {
+  for (let index = 0; index < headers.length; index++) {
+    if (aliases.indexOf(headers[index]) !== -1) return index;
+  }
+  return -1;
+}
+
+function privacyDateFromParts(parts) {
+  return new Date(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+}
+
+function deduplicatePrivacyConsentRoster(records) {
+  const result = [];
+  const indexByKey = {};
+  records.forEach(function (record) {
+    const identity = normalizePersonName(record.name) + "|" + (record.birthKey || normalizeDepartment(record.dept));
+    const key = identity + "|" + record.dateParts.key;
+    if (indexByKey[key] === undefined) {
+      indexByKey[key] = result.length;
+      result.push(record);
+      return;
+    }
+    const existing = result[indexByKey[key]];
+    if (existing.employmentStatus.indexOf(record.employmentStatus) === -1) {
+      existing.employmentStatus += "/" + record.employmentStatus;
+    }
+    if (!existing.dept && record.dept) existing.dept = record.dept;
+    if (!existing.job && record.job) existing.job = record.job;
+    if (!existing.birthKey && record.birthKey) existing.birthKey = record.birthKey;
+  });
+  return result;
+}
+
+function selectPrivacyConsentSignature(record, candidates, sameNameNeedsBirth) {
+  const name = normalizePersonName(record.name);
+  const dept = normalizeDepartment(record.dept);
+  const nameMatches = candidates.filter(function (candidate) {
+    return normalizePersonName(candidate.name) === name || candidate.normalizedTitle.indexOf(name) !== -1;
+  });
+  if (!nameMatches.length) return { status: "없음", reason: "서명 파일 없음", candidate: null };
+
+  if (sameNameNeedsBirth && !record.birthKey) {
+    return { status: "직원정보불일치", reason: "동명이인 확인용 생년월일 없음", candidate: null };
+  }
+  if (sameNameNeedsBirth) {
+    const exactBirth = nameMatches.filter(function (candidate) { return candidate.birthKey === record.birthKey; });
+    if (!exactBirth.length) {
+      return { status: "직원정보불일치", reason: "동명이인 생년월일과 일치하는 서명 없음", candidate: null };
+    }
+    exactBirth.sort(function (a, b) { return b.modified - a.modified; });
+    return { status: "있음", reason: "", candidate: exactBirth[0] };
+  }
+
+  let valid = nameMatches;
+  if (record.birthKey) {
+    valid = nameMatches.filter(function (candidate) {
+      return !candidate.birthKey || candidate.birthKey === record.birthKey;
+    });
+    if (!valid.length) {
+      return { status: "직원정보불일치", reason: "생년월일과 일치하는 서명 없음", candidate: null };
+    }
+  }
+  valid.sort(function (a, b) {
+    const aBirth = record.birthKey && a.birthKey === record.birthKey ? 1 : 0;
+    const bBirth = record.birthKey && b.birthKey === record.birthKey ? 1 : 0;
+    if (aBirth !== bBirth) return bBirth - aBirth;
+    const aDept = a.dept && normalizeDepartment(a.dept) === dept ? 1 : 0;
+    const bDept = b.dept && normalizeDepartment(b.dept) === dept ? 1 : 0;
+    if (aDept !== bDept) return bDept - aDept;
+    return b.modified - a.modified;
+  });
+  return { status: "있음", reason: "", candidate: valid[0] };
+}
+
+function privacyConsentResolutionSummary(resolved) {
+  return resolved.records.reduce(function (summary, record) {
+    if (record.signatureMatch && record.signatureMatch.candidate) summary.signed += 1;
+    else summary.missing += 1;
+    return summary;
+  }, { signed: 0, missing: 0 });
+}
+
+function ensurePrivacyConsentMissingSheet(spreadsheet) {
+  const headers = ["연도", "이름", "부서", "입사일", "누락 사유", "후속조치", "서명 등록 링크", "최근 확인"];
+  const sheet = ensureSheet(spreadsheet, PRIVACY_CONSENT_MISSING_SHEET, headers);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setBackground("#991B1B").setFontColor("#FFFFFF").setFontWeight("bold");
+  sheet.setFrozenRows(1);
+  sheet.setTabColor("#DC2626");
+  [70, 100, 130, 100, 240, 330, 360, 150].forEach(function (width, index) {
+    sheet.setColumnWidth(index + 1, width);
+  });
+  return sheet;
+}
+
+function writePrivacyConsentMissingSheet(resolved) {
+  const sheet = ensurePrivacyConsentMissingSheet(getSpreadsheet());
+  if (sheet.getMaxRows() > 1) {
+    sheet.getRange(2, 1, sheet.getMaxRows() - 1, 8).clearContent().clearFormat();
+  }
+  const checkedAt = new Date();
+  const rows = resolved.records.filter(function (record) {
+    return !record.signatureMatch || !record.signatureMatch.candidate;
+  }).sort(function (a, b) {
+    if (a.year !== b.year) return a.year.localeCompare(b.year);
+    if (a.dateParts.key !== b.dateParts.key) return a.dateParts.key.localeCompare(b.dateParts.key);
+    return a.name.localeCompare(b.name, "ko");
+  }).map(function (record) {
+    return [
+      record.year,
+      record.name,
+      record.dept,
+      record.hireDate,
+      record.signatureMatch ? record.signatureMatch.reason : "서명 확인 실패",
+      "서명 등록 후 '서명 누락명단 갱신'을 실행하고 해당 연도 통합문서를 다시 생성",
+      PRIVACY_SIGNATURE_URL,
+      checkedAt
+    ];
+  });
+  if (rows.length) {
+    if (sheet.getMaxRows() < rows.length + 1) sheet.insertRowsAfter(sheet.getMaxRows(), rows.length + 1 - sheet.getMaxRows());
+    const range = sheet.getRange(2, 1, rows.length, 8);
+    range.setValues(rows).setBackground("#FEF2F2").setVerticalAlignment("middle").setWrap(true);
+    sheet.getRange(2, 4, rows.length, 1).setNumberFormat("yyyy. m. d.");
+    sheet.getRange(2, 8, rows.length, 1).setNumberFormat("yyyy. m. d. hh:mm");
+  }
+  ensurePrivacyConsentMissingSheet(getSpreadsheet());
+}
+
+function assertPrivacyConsentArchiveTemplate(body) {
+  const text = body.getText();
+  ["{{이름}}", "{{날짜}}", "{{서명}}"].forEach(function (tag) {
+    if (text.indexOf(tag) === -1 && !(tag === "{{이름}}" && text.indexOf("{{ 이름 }}") !== -1)) {
+      throw new Error(`개인정보동의서 템플릿에서 ${tag} 태그를 찾을 수 없습니다.`);
+    }
+  });
+  const consentCount = (text.match(/□동의함 □동의하지 않음/g) || []).length;
+  if (consentCount !== 3) throw new Error(`개인정보동의서 템플릿의 동의 항목이 3개가 아닙니다. 현재 ${consentCount}개입니다.`);
+}
+
+function appendPrivacyConsentTemplateBody(outputBody, templateBody) {
+  for (let index = 0; index < templateBody.getNumChildren(); index++) {
+    const child = templateBody.getChild(index);
+    const type = child.getType();
+    if (type === DocumentApp.ElementType.PARAGRAPH) {
+      outputBody.appendParagraph(child.copy().asParagraph());
+    } else if (type === DocumentApp.ElementType.TABLE) {
+      outputBody.appendTable(child.copy().asTable());
+    } else if (type === DocumentApp.ElementType.LIST_ITEM) {
+      outputBody.appendListItem(child.copy().asListItem());
+    } else {
+      throw new Error(`개인정보동의서 템플릿의 지원하지 않는 본문 요소입니다: ${type}`);
+    }
+  }
+}
+
+function populatePrivacyConsentPage(body, record, signatureCandidate, signatureBlobCache) {
+  replaceTextWithNearbyStyle(body, "{{날짜}}", `${record.dateParts.year}. ${("0" + record.dateParts.month).slice(-2)}. ${("0" + record.dateParts.day).slice(-2)}.`);
+  replaceTextWithNearbyStyle(body, "{{이름}}", record.name);
+  replaceTextWithNearbyStyle(body, "{{ 이름 }}", record.name);
+  body.replaceText(escapeRegExp("□동의함 □동의하지 않음"), "■동의함 □동의하지 않음");
+
+  const signatureLocation = body.findText(escapeRegExp("{{서명}}"));
+  if (!signatureLocation) throw new Error(`${record.name}님의 서명 위치를 템플릿에서 찾을 수 없습니다.`);
+  const textElement = signatureLocation.getElement().asText();
+  textElement.deleteText(signatureLocation.getStartOffset(), signatureLocation.getEndOffsetInclusive());
+  const signatureBlob = signatureBlobCache[signatureCandidate.id] || signatureCandidate.file.getBlob();
+  signatureBlobCache[signatureCandidate.id] = signatureBlob;
+  textElement.getParent().asParagraph().appendInlineImage(signatureBlob).setWidth(100).setHeight(60);
+}
+
+function validatePrivacyConsentArchive(documentId, employeeCount) {
+  const text = DocumentApp.openById(documentId).getBody().getText();
+  if (/\{\{\s*(이름|날짜|서명)\s*\}\}/.test(text)) throw new Error("통합 개인정보동의서에 미치환 태그가 남아 있습니다.");
+  const checkedCount = (text.match(/■동의함 □동의하지 않음/g) || []).length;
+  if (checkedCount !== employeeCount * 3) {
+    throw new Error(`통합 개인정보동의서 동의 체크 수가 올바르지 않습니다. 예상 ${employeeCount * 3}개 / 실제 ${checkedCount}개`);
+  }
+}
+
+function getPrivacyConsentArchiveFolder(year) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const documents = getOrCreateFolder(root, "02_서류보관");
+  const consent = getOrCreateFolder(documents, "개인정보 수집·이용 동의서");
+  return getOrCreateFolder(consent, String(year) + "년");
 }
 
 function getAccessArchiveFolder(year) {
