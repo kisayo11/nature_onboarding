@@ -16,7 +16,10 @@ const ACCESS_REQUESTER_COLUMN = 15; // O열
 const ACCESS_STATUS_COLUMN = 16; // P열
 const ACCESS_STATUS_HEADER = "서명 상태";
 const ACCESS_REQUESTER_NAME = "김상용";
+const ACCESS_PREVIOUS_REQUESTER_NAME = "최창영";
+const ACCESS_REQUESTER_CHANGE_DATE_KEY = "20250131";
 const ACCESS_REQUESTER_SIGNATURE_FILE_ID = "1-mk4oQakq57yLTxNqT6cnSKFUmEJG6Fw";
+const ACCESS_PREVIOUS_REQUESTER_SIGNATURE_FILE_ID = "1gNhF-ck2ONHP3Dt-2zvAxtWvynfZ_vJw";
 
 const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
 const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
@@ -812,7 +815,7 @@ function accessRowRecord(sheet, rowNumber, row) {
     birthKey: privacyBirthKey(row[10]) || privacyBirthKey(row[9]),
     date: String(row[12] || "").trim(),
     requestDate: String(row[13] || "").trim(),
-    requester: String(row[14] || ACCESS_REQUESTER_NAME).trim() || ACCESS_REQUESTER_NAME,
+    requester: String(row[14] || accessRequesterNameForDate(row[13] || row[12])).trim() || accessRequesterNameForDate(row[13] || row[12]),
     status: String(row[15] || "").trim()
   };
 }
@@ -1037,6 +1040,7 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
   const displayDate = `${dateParts.year}. ${dateParts.month}. ${dateParts.day}.`;
   const requestDateParts = accessDateParts(timestamp) || dateParts;
   const requestDisplayDate = `${requestDateParts.year}. ${requestDateParts.month}. ${requestDateParts.day}.`;
+  const requesterName = accessRequesterNameForDate(requestDisplayDate);
   const department = canonicalAccessDepartment(data.dept || data.department);
   const accessRule = resolveAccessRule(department, data.job || "");
   const ruleValues = accessRuleColumnValues(accessRule);
@@ -1059,7 +1063,7 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
     "",
     displayDate,
     requestDisplayDate,
-    ACCESS_REQUESTER_NAME,
+    requesterName,
     "있음"
   ].concat(ruleValues);
 
@@ -1127,11 +1131,17 @@ function ensureAccessYearSheetLayout(sheet) {
 
 function normalizeAccessRequesterRows(sheet) {
   if (sheet.getLastRow() < 2) return;
-  const names = sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).getDisplayValues();
-  const requesters = names.map(function (row) {
-    return [String(row[0] || "").trim() ? ACCESS_REQUESTER_NAME : ""];
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_REQUEST_DATE_COLUMN).getDisplayValues();
+  const requesters = rows.map(function (row) {
+    return [String(row[1] || "").trim() ? accessRequesterNameForDate(row[13] || row[12]) : ""];
   });
   sheet.getRange(2, ACCESS_REQUESTER_COLUMN, requesters.length, 1).setValues(requesters);
+}
+
+function accessRequesterNameForDate(value) {
+  const parts = accessDateParts(value);
+  if (!parts) return ACCESS_REQUESTER_NAME;
+  return parts.key < ACCESS_REQUESTER_CHANGE_DATE_KEY ? ACCESS_PREVIOUS_REQUESTER_NAME : ACCESS_REQUESTER_NAME;
 }
 
 function accessRuleColumnValues(accessRule) {
@@ -1903,11 +1913,14 @@ function generateAccessRequestArchive(year) {
     const outputBody = outputDoc.getBody();
     outputBody.clear();
     const signatureBlobCache = {};
-    const requesterSignature = getAccessRequesterSignatureCandidate();
+    const requesterSignatures = {};
 
     records.forEach(function (record, index) {
       if (index > 0) outputBody.appendPageBreak();
       const pageTable = outputBody.appendTable(templateTable.copy());
+      const requesterName = record.requester || accessRequesterNameForDate(record.requestDate || record.date);
+      const requesterSignature = requesterSignatures[requesterName] || getAccessRequesterSignatureCandidate(requesterName);
+      requesterSignatures[requesterName] = requesterSignature;
       populateAccessRequestPage(pageTable, record, requesterSignature, signatureBlobCache);
     });
     outputDoc.saveAndClose();
@@ -1939,9 +1952,9 @@ function generateAccessRequestDocument(year, rowNumber) {
     const row = sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).getDisplayValues()[0];
     const record = accessRowRecord(sheet, rowNumber, row);
     if (!record.name) throw new Error(`${year}년 ${rowNumber}행에 직원명이 없습니다.`);
-    record.requester = ACCESS_REQUESTER_NAME;
+    record.requester = accessRequesterNameForDate(record.requestDate || record.date);
     record.accessRule = resolveAccessRule(record.dept, record.job, ensureAccessRuleSheet(spreadsheet));
-    sheet.getRange(rowNumber, ACCESS_REQUESTER_COLUMN).setValue(ACCESS_REQUESTER_NAME);
+    sheet.getRange(rowNumber, ACCESS_REQUESTER_COLUMN).setValue(record.requester);
     sheet.getRange(rowNumber, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length)
       .setValues([accessRuleColumnValues(record.accessRule)]);
 
@@ -1953,7 +1966,7 @@ function generateAccessRequestDocument(year, rowNumber) {
     const outputDoc = DocumentApp.openById(docFile.getId());
     const pageTable = getFirstBodyTable(outputDoc.getBody());
     if (!pageTable) throw new Error("접근권한 요청서 템플릿의 본문 표를 찾을 수 없습니다.");
-    populateAccessRequestPage(pageTable, record, getAccessRequesterSignatureCandidate(), {});
+    populateAccessRequestPage(pageTable, record, getAccessRequesterSignatureCandidate(record.requester), {});
     outputDoc.saveAndClose();
 
     ensureLogSheet(getSpreadsheet()).appendRow([
@@ -1967,10 +1980,14 @@ function generateAccessRequestDocument(year, rowNumber) {
   }
 }
 
-function getAccessRequesterSignatureCandidate() {
-  const file = DriveApp.getFileById(ACCESS_REQUESTER_SIGNATURE_FILE_ID);
-  if (file.getMimeType().indexOf("image/") !== 0) throw new Error("김상용 요청자 서명 파일이 이미지가 아닙니다.");
-  return signatureCandidate(file, { name: ACCESS_REQUESTER_NAME }, {});
+function getAccessRequesterSignatureCandidate(requesterName) {
+  const name = requesterName === ACCESS_PREVIOUS_REQUESTER_NAME ? ACCESS_PREVIOUS_REQUESTER_NAME : ACCESS_REQUESTER_NAME;
+  const fileId = name === ACCESS_PREVIOUS_REQUESTER_NAME
+    ? ACCESS_PREVIOUS_REQUESTER_SIGNATURE_FILE_ID
+    : ACCESS_REQUESTER_SIGNATURE_FILE_ID;
+  const file = DriveApp.getFileById(fileId);
+  if (file.getMimeType().indexOf("image/") !== 0) throw new Error(`${name} 요청자 서명 파일이 이미지가 아닙니다.`);
+  return signatureCandidate(file, { name: name }, {});
 }
 
 function refreshPrivacyConsentStatuses() {
