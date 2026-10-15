@@ -71,7 +71,6 @@ function onOpen() {
     .addSeparator()
     .addItem("접근권한 기준표 생성/동기화", "syncAccessRuleAutomation")
     .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
-    .addItem("접근권한 선택 행 개별 GDoc 생성", "generateSelectedAccessRequestDocument")
     .addItem("2025년 접근권한 통합문서 생성", "generateAccessRequests2025")
     .addItem("2026년 접근권한 통합문서 생성", "generateAccessRequests2026")
     .addToUi();
