@@ -4,8 +4,8 @@ const ACCESS_TEMPLATE_ID = "1jc5Ez2votn4uItriaLUJrbq7vnJZK1mdxKNHwU6De2E";
 const ACCESS_DRIVE_ROOT_FOLDER_ID = "1fOCZbxN4xAy9bcgTweHk0sd2wvlT4G9J";
 const ACCESS_REQUESTER_CHANGE_DATE_KEY = "20250131";
 const ACCESS_REQUESTER_SIGNATURE_IDS = {
-  "최창영": "1gNhF-ck2ONHP3Dt-2zvAxtWvynfZ_vJw",
-  "김상용": "1-mk4oQakq57yLTxNqT6cnSKFUmEJG6Fw"
+  "최창영": "1EXEXAtyZIEEpYNTTAdyrDqcdkjZ-XGzv",
+  "김상용": "1-TAYyN575lE1YyrMjcqWOBhhrptcBtJE"
 };
 
 function onOpen() {
