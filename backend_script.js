@@ -10,8 +10,13 @@ const ACCESS_TEMPLATE_ID = "1jc5Ez2votn4uItriaLUJrbq7vnJZK1mdxKNHwU6De2E";
 const EDUCATION_ROOT_FOLDER_ID = "1QboVZaNAR7altzSLrmCLCIgVaPzlsyyA";
 const EDUCATION_SPREADSHEET_ID = "1KCKWEIyMc9iOQkRVmHv2i5HchHjYMm5cNCZTyZga17E";
 const EDUCATION_SIGNATURE_SHEET = "서명_기록";
-const ACCESS_STATUS_COLUMN = 14; // N열
+const ACCESS_EFFECTIVE_DATE_COLUMN = 13; // M열
+const ACCESS_REQUEST_DATE_COLUMN = 14; // N열
+const ACCESS_REQUESTER_COLUMN = 15; // O열
+const ACCESS_STATUS_COLUMN = 16; // P열
 const ACCESS_STATUS_HEADER = "서명 상태";
+const ACCESS_REQUESTER_NAME = "김상용";
+const ACCESS_REQUESTER_SIGNATURE_FILE_ID = "1-mk4oQakq57yLTxNqT6cnSKFUmEJG6Fw";
 
 const TEMPLATE_SAFETY_ID = "1uQvHrouIG94qp-txtvDrwu1n1F_cu_52QaYg7b9emVU";
 const TEMPLATE_PRIVACY_ID = "13b98fzAIaf1UtNVmlqqBFyLWQPMDmlnheIKp4jDBoUk";
@@ -32,7 +37,7 @@ const PRIVACY_REISSUE_VERSION = "privacy-date-style-v3";
 const REISSUE_BATCH_SIZE = 20;
 const ACCESS_LEGACY_SCAN_CACHE_MS = 6 * 60 * 60 * 1000;
 const PRIVACY_SIGNATURE_URL = "https://kisayo11.github.io/nature_onboarding/?view=access-signature";
-const ACCESS_RULE_START_COLUMN = 15; // O열
+const ACCESS_RULE_START_COLUMN = 17; // Q열
 const ACCESS_RULE_HEADERS = ["권한기준", "대상", "작성", "수정", "열람", "출력", "출력조건"];
 const ACCESS_RULE_SHEET_HEADERS = [
   "표준부서", "기준직종/세부업무", "목적", "대상", "작성", "수정", "열람", "출력", "출력조건",
@@ -63,6 +68,7 @@ function onOpen() {
     .addSeparator()
     .addItem("접근권한 기준표 생성/동기화", "syncAccessRuleAutomation")
     .addItem("접근권한 서명 상태 갱신", "refreshAccessSignatureStatuses")
+    .addItem("접근권한 선택 행 개별 GDoc 생성", "generateSelectedAccessRequestDocument")
     .addItem("2025년 접근권한 통합문서 생성", "generateAccessRequests2025")
     .addItem("2026년 접근권한 통합문서 생성", "generateAccessRequests2026")
     .addToUi();
@@ -108,8 +114,8 @@ function initializeAccessAutomation() {
   ensureAccessRuleSheet(accessSpreadsheet);
   accessSpreadsheet.getSheets().forEach(function (sheet) {
     if (/^\d{4}$/.test(sheet.getName())) {
-      sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
-      sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
+      ensureAccessYearSheetLayout(sheet);
+      normalizeAccessRequesterRows(sheet);
     }
   });
 
@@ -130,6 +136,39 @@ function generateAccessRequests2025() {
 
 function generateAccessRequests2026() {
   return generateAccessRequestArchive("2026");
+}
+
+function generateSelectedAccessRequestDocument() {
+  const ui = SpreadsheetApp.getUi();
+  let year = "";
+  let rowNumber = 0;
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const activeSheet = activeSpreadsheet && activeSpreadsheet.getActiveSheet();
+  const activeRange = activeSheet && activeSheet.getActiveRange();
+
+  if (activeSpreadsheet && activeSpreadsheet.getId() === ACCESS_SPREADSHEET_ID &&
+      activeSheet && /^\d{4}$/.test(activeSheet.getName()) && activeRange && activeRange.getRow() >= 2) {
+    year = activeSheet.getName();
+    rowNumber = activeRange.getRow();
+  } else {
+    const response = ui.prompt(
+      "접근권한 개별 GDoc 생성",
+      "연도와 행번호를 쉼표로 입력하세요. 예: 2026,15",
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (response.getSelectedButton() !== ui.Button.OK) return null;
+    const match = response.getResponseText().trim().match(/^(20\d{2})\s*[,，\s]\s*(\d+)$/);
+    if (!match || Number(match[2]) < 2) {
+      ui.alert("입력 오류", "예: 2026,15 형식으로 입력해 주세요.", ui.ButtonSet.OK);
+      return null;
+    }
+    year = match[1];
+    rowNumber = Number(match[2]);
+  }
+
+  const result = generateAccessRequestDocument(year, rowNumber);
+  ui.alert("개별 GDoc 생성 완료", `${result.name}\n${result.docUrl}`, ui.ButtonSet.OK);
+  return result;
 }
 
 function generatePrivacyConsents2025() {
@@ -772,7 +811,9 @@ function accessRowRecord(sheet, rowNumber, row) {
     dept: String(row[7] || "").trim(),
     birthKey: privacyBirthKey(row[10]) || privacyBirthKey(row[9]),
     date: String(row[12] || "").trim(),
-    status: String(row[13] || "").trim()
+    requestDate: String(row[13] || "").trim(),
+    requester: String(row[14] || ACCESS_REQUESTER_NAME).trim() || ACCESS_REQUESTER_NAME,
+    status: String(row[15] || "").trim()
   };
 }
 
@@ -969,6 +1010,7 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
 
   const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
   const sheet = getOrCreateAccessYearSheet(spreadsheet, dateParts.year);
+  ensureAccessYearSheetLayout(sheet);
   const lastRow = sheet.getLastRow();
   const values = lastRow >= 2
     ? sheet.getRange(2, 1, lastRow - 1, ACCESS_STATUS_COLUMN).getDisplayValues()
@@ -993,6 +1035,8 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
   }
 
   const displayDate = `${dateParts.year}. ${dateParts.month}. ${dateParts.day}.`;
+  const requestDateParts = accessDateParts(timestamp) || dateParts;
+  const requestDisplayDate = `${requestDateParts.year}. ${requestDateParts.month}. ${requestDateParts.day}.`;
   const department = canonicalAccessDepartment(data.dept || data.department);
   const accessRule = resolveAccessRule(department, data.job || "");
   const ruleValues = accessRuleColumnValues(accessRule);
@@ -1014,6 +1058,8 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
     data.residentNumber || String(data.birth || "").replace(/[^0-9]/g, "").slice(0, 6),
     "",
     displayDate,
+    requestDisplayDate,
+    ACCESS_REQUESTER_NAME,
     "있음"
   ].concat(ruleValues);
 
@@ -1029,7 +1075,7 @@ function syncAccessRequest(data, isOffboarding, signatureUrl, timestamp) {
   } else {
     const current = sheet.getRange(rowNumber, 1, 1, newRow.length).getDisplayValues()[0];
     newRow.forEach(function (value, index) {
-      if (!String(current[index] || "").trim() || [2, 3, 13, 14, 15, 16, 17, 18, 19, 20].indexOf(index) !== -1) {
+      if (!String(current[index] || "").trim() || [2, 3, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].indexOf(index) !== -1) {
         sheet.getRange(rowNumber, index + 1).setValue(value);
       }
     });
@@ -1059,14 +1105,33 @@ function getOrCreateAccessYearSheet(spreadsheet, year) {
       sheet = spreadsheet.insertSheet(String(year));
       sheet.getRange(1, 1, 1, ACCESS_RULE_START_COLUMN + ACCESS_RULE_HEADERS.length - 1).setValues([[
         "순번", "직원명", "접근권한 요청항목", "요청사유", "입사일", "퇴사일", "직종",
-        "부서", "직위", "휴대폰", "주민등록번호", "면허번호", "날짜", ACCESS_STATUS_HEADER
+        "부서", "직위", "휴대폰", "주민등록번호", "면허번호", "날짜", "요청날짜", "요청자", ACCESS_STATUS_HEADER
       ].concat(ACCESS_RULE_HEADERS)]);
     }
   }
+  ensureAccessYearSheetLayout(sheet);
+  return sheet;
+}
+
+function ensureAccessYearSheetLayout(sheet) {
+  const requiredColumns = ACCESS_RULE_START_COLUMN + ACCESS_RULE_HEADERS.length - 1;
+  if (sheet.getMaxColumns() < requiredColumns) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), requiredColumns - sheet.getMaxColumns());
+  }
+  sheet.getRange(1, ACCESS_REQUEST_DATE_COLUMN).setValue("요청날짜");
+  sheet.getRange(1, ACCESS_REQUESTER_COLUMN).setValue("요청자");
   sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
   sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
   sheet.setFrozenRows(1);
-  return sheet;
+}
+
+function normalizeAccessRequesterRows(sheet) {
+  if (sheet.getLastRow() < 2) return;
+  const names = sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).getDisplayValues();
+  const requesters = names.map(function (row) {
+    return [String(row[0] || "").trim() ? ACCESS_REQUESTER_NAME : ""];
+  });
+  sheet.getRange(2, ACCESS_REQUESTER_COLUMN, requesters.length, 1).setValues(requesters);
 }
 
 function accessRuleColumnValues(accessRule) {
@@ -1471,8 +1536,8 @@ function refreshAccessSignatureStatuses() {
 
   spreadsheet.getSheets().forEach(function (sheet) {
     if (!/^\d{4}$/.test(sheet.getName())) return;
-    sheet.getRange(1, ACCESS_STATUS_COLUMN).setValue(ACCESS_STATUS_HEADER);
-    sheet.getRange(1, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length).setValues([ACCESS_RULE_HEADERS]);
+    ensureAccessYearSheetLayout(sheet);
+    normalizeAccessRequesterRows(sheet);
     if (sheet.getLastRow() < 2) return;
 
     const range = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN);
@@ -1791,6 +1856,8 @@ function generateAccessRequestArchive(year) {
     const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
     const sheet = spreadsheet.getSheetByName(String(year));
     if (!sheet || sheet.getLastRow() < 2) throw new Error(`${year}년 데이터가 없습니다.`);
+    ensureAccessYearSheetLayout(sheet);
+    normalizeAccessRequesterRows(sheet);
 
     const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, ACCESS_STATUS_COLUMN).getDisplayValues();
     const records = rows.map(function (row, offset) {
@@ -1836,12 +1903,12 @@ function generateAccessRequestArchive(year) {
     const outputBody = outputDoc.getBody();
     outputBody.clear();
     const signatureBlobCache = {};
+    const requesterSignature = getAccessRequesterSignatureCandidate();
 
     records.forEach(function (record, index) {
-      const signatureMatch = signatureMatches[index];
       if (index > 0) outputBody.appendPageBreak();
       const pageTable = outputBody.appendTable(templateTable.copy());
-      populateAccessRequestPage(pageTable, record, signatureMatch.candidate, signatureBlobCache);
+      populateAccessRequestPage(pageTable, record, requesterSignature, signatureBlobCache);
     });
     outputDoc.saveAndClose();
     SpreadsheetApp.flush();
@@ -1857,6 +1924,53 @@ function generateAccessRequestArchive(year) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function generateAccessRequestDocument(year, rowNumber) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error("다른 요청서 생성 작업이 진행 중입니다.");
+  try {
+    const spreadsheet = SpreadsheetApp.openById(ACCESS_SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(String(year));
+    if (!sheet) throw new Error(`${year}년 시트를 찾을 수 없습니다.`);
+    ensureAccessYearSheetLayout(sheet);
+    if (rowNumber < 2 || rowNumber > sheet.getLastRow()) throw new Error(`${year}년 ${rowNumber}행을 찾을 수 없습니다.`);
+
+    const row = sheet.getRange(rowNumber, 1, 1, ACCESS_STATUS_COLUMN).getDisplayValues()[0];
+    const record = accessRowRecord(sheet, rowNumber, row);
+    if (!record.name) throw new Error(`${year}년 ${rowNumber}행에 직원명이 없습니다.`);
+    record.requester = ACCESS_REQUESTER_NAME;
+    record.accessRule = resolveAccessRule(record.dept, record.job, ensureAccessRuleSheet(spreadsheet));
+    sheet.getRange(rowNumber, ACCESS_REQUESTER_COLUMN).setValue(ACCESS_REQUESTER_NAME);
+    sheet.getRange(rowNumber, ACCESS_RULE_START_COLUMN, 1, ACCESS_RULE_HEADERS.length)
+      .setValues([accessRuleColumnValues(record.accessRule)]);
+
+    const outputFolder = getAccessIndividualFolder(String(year));
+    const createdAt = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
+    const sequence = String(row[0] || rowNumber).trim();
+    const baseName = `${year}년 접근권한 요청서_${sequence}_${sanitizeFileName(record.name)}_${createdAt}`;
+    const docFile = DriveApp.getFileById(ACCESS_TEMPLATE_ID).makeCopy(baseName, outputFolder);
+    const outputDoc = DocumentApp.openById(docFile.getId());
+    const pageTable = getFirstBodyTable(outputDoc.getBody());
+    if (!pageTable) throw new Error("접근권한 요청서 템플릿의 본문 표를 찾을 수 없습니다.");
+    populateAccessRequestPage(pageTable, record, getAccessRequesterSignatureCandidate(), {});
+    outputDoc.saveAndClose();
+
+    ensureLogSheet(getSpreadsheet()).appendRow([
+      Utilities.getUuid(), new Date(), new Date(), `${record.name} 접근권한`, "행별 개별", "완료", "Google Doc 생성",
+      "", docFile.getId(), "", "", "", ""
+    ]);
+    SpreadsheetApp.flush();
+    return { name: baseName, docUrl: docFile.getUrl(), rowNumber: rowNumber, year: String(year) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getAccessRequesterSignatureCandidate() {
+  const file = DriveApp.getFileById(ACCESS_REQUESTER_SIGNATURE_FILE_ID);
+  if (file.getMimeType().indexOf("image/") !== 0) throw new Error("김상용 요청자 서명 파일이 이미지가 아닙니다.");
+  return signatureCandidate(file, { name: ACCESS_REQUESTER_NAME }, {});
 }
 
 function refreshPrivacyConsentStatuses() {
@@ -2356,6 +2470,10 @@ function getAccessArchiveFolder(year) {
   return getOrCreateFolder(access, year + "년");
 }
 
+function getAccessIndividualFolder(year) {
+  return getOrCreateFolder(getAccessArchiveFolder(year), "개별 GDoc");
+}
+
 function getFirstBodyTable(body) {
   for (let i = 0; i < body.getNumChildren(); i++) {
     const child = body.getChild(i);
@@ -2382,8 +2500,16 @@ function populateAccessRequestPage(pageTable, record, signatureCandidate, signat
     reasonCell.replaceText(`□ ${label}`, record.reason.indexOf(label) !== -1 ? `■ ${label}` : `□ ${label}`);
   });
 
-  const dateText = formatAccessDate(record.date);
-  pageTable.replaceText("20\\s*년\\s*월\\s*일", dateText);
+  const effectiveDateText = formatAccessDate(record.date);
+  const effectiveDateParagraph = findParagraphContaining(pageTable, "상기직원은");
+  if (effectiveDateParagraph) {
+    effectiveDateParagraph.replaceText("20\\s*년\\s*월\\s*일", effectiveDateText);
+  }
+  const requestDateText = formatAccessDate(record.requestDate || record.date);
+  const requestDateParagraph = findParagraphMatching(pageTable, /^\s*20\s*년\s*월\s*일\s*$/);
+  if (requestDateParagraph) {
+    requestDateParagraph.replaceText("20\\s*년\\s*월\\s*일", requestDateText);
+  }
   const accessRule = record.accessRule || { matched: false };
   const accessReplacements = {
     "{{대상}}": accessRule.target || "",
@@ -2400,7 +2526,7 @@ function populateAccessRequestPage(pageTable, record, signatureCandidate, signat
   const requester = findParagraphContaining(pageTable, "요청자");
   if (requester) {
     requester.clear();
-    requester.appendText(`요청자 : ${record.name}  `);
+    requester.appendText(`요청자 : ${record.requester || ACCESS_REQUESTER_NAME}  `);
     if (signatureCandidate) {
       const signatureBlob = signatureBlobCache[signatureCandidate.id] || signatureCandidate.file.getBlob();
       signatureBlobCache[signatureCandidate.id] = signatureBlob;
@@ -2433,6 +2559,19 @@ function findParagraphContaining(element, text) {
   if (!element.getNumChildren) return null;
   for (let i = 0; i < element.getNumChildren(); i++) {
     const found = findParagraphContaining(element.getChild(i), text);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findParagraphMatching(element, pattern) {
+  if (element.getType && element.getType() === DocumentApp.ElementType.PARAGRAPH) {
+    const paragraph = element.asParagraph();
+    if (pattern.test(paragraph.getText())) return paragraph;
+  }
+  if (!element.getNumChildren) return null;
+  for (let i = 0; i < element.getNumChildren(); i++) {
+    const found = findParagraphMatching(element.getChild(i), pattern);
     if (found) return found;
   }
   return null;
